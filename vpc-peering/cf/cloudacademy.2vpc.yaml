@@ -67,7 +67,7 @@ Resources:
         Properties:
             Tags:
               - Key: Name
-                Value: VPC1InternetGateway
+                Value: VPC1 InternetGateway
 
     VPC1AttachGateway:
         Type: AWS::EC2::VPCGatewayAttachment
@@ -133,7 +133,7 @@ Resources:
         SecurityGroupIds: [!Ref 'VPC1InstanceSecurityGroup']
         Tags:
         - Key: Name
-          Value: VPC1Instance
+          Value: VPC1 Instance
 
     VPC2:
         Type: AWS::EC2::VPC
@@ -162,7 +162,7 @@ Resources:
         Properties:
             Tags:
               - Key: Name
-                Value: VPC2InternetGateway
+                Value: VPC2 InternetGateway
 
     VPC2AttachGateway:
         Type: AWS::EC2::VPCGatewayAttachment
@@ -228,4 +228,4 @@ Resources:
         SecurityGroupIds: [!Ref 'VPC2InstanceSecurityGroup']
         Tags:
         - Key: Name
-          Value: VPC2Instance
+          Value: VPC2 Instance
