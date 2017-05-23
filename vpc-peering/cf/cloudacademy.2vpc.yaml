@@ -1,0 +1,231 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates 2 VPCs with single subnet and single EC2 instance 
+Parameters:
+  KeyName:
+    Description: EC2 KeyPair to enable SSH access to the EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
+
+Mappings:
+    AWSRegionToAMI:
+        us-east-1:
+            AMI: ami-c58c1dd3
+        us-east-2:
+            AMI: ami-4191b524
+        us-west-1:
+            AMI: ami-7a85a01a
+        us-west-2:
+            AMI: ami-4836a428
+        ca-central-1:
+            AMI: ami-0bd66a6f
+        eu-west-1:
+            AMI: ami-01ccc867
+        eu-central-1:
+            AMI: ami-b968bad6
+        eu-west-2:
+            AMI: ami-b6daced2
+        ap-northeast-1:
+            AMI: ami-923d12f5
+        ap-northeast-2:
+            AMI: ami-9d15c7f3
+        ap-southeast-1:
+            AMI: ami-fc5ae39f
+        ap-southeast-2:
+            AMI: ami-162c2575
+        ap-south-1:
+            AMI: ami-52c7b43d
+        sa-east-1:
+            AMI: ami-37cfad5b
+        cn-north-1:
+            AMI: ami-3fe13752
+
+Resources:
+    VPC1:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 10.1.0.0/16
+            EnableDnsSupport: true
+            EnableDnsHostnames: true
+            InstanceTenancy: default
+            Tags:
+              - Key: Name
+                Value: VPC1
+
+    VPC1Subnet:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPC1
+            CidrBlock: 10.1.1.0/24
+            MapPublicIpOnLaunch: true
+            Tags:
+              - Key: Name
+                Value: VPC1 Subnet
+
+    VPC1InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+              - Key: Name
+                Value: VPC1InternetGateway
+
+    VPC1AttachGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPC1
+            InternetGatewayId:
+                Ref: VPC1InternetGateway
+
+    VPC1SubnetRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPC1
+            Tags:
+              - Key: Name
+                Value: VPC1 Subnet Route Table
+
+    VPC1InternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPC1InternetGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId:
+                Ref: VPC1InternetGateway
+            RouteTableId:
+                Ref: VPC1SubnetRouteTable
+
+    VPC1SubnetRouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPC1SubnetRouteTable
+            SubnetId:
+                Ref: VPC1Subnet
+
+    VPC1InstanceSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH to Instance
+            VpcId:
+                Ref: VPC1
+            SecurityGroupIngress:
+              - IpProtocol: tcp
+                FromPort: '22'
+                ToPort: '22'
+                CidrIp: 0.0.0.0/0
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPC1 Instance Security Group
+
+    VPC1Instance:
+      Type: AWS::EC2::Instance
+      Properties:
+        KeyName: !Ref 'KeyName'
+        InstanceType: t2.micro
+        ImageId: !FindInMap [ AWSRegionToAMI, !Ref "AWS::Region", AMI ]
+        SubnetId: !Ref 'VPC1Subnet'
+        SourceDestCheck: 'true'      
+        SecurityGroupIds: [!Ref 'VPC1InstanceSecurityGroup']
+        Tags:
+        - Key: Name
+          Value: VPC1Instance
+
+    VPC2:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 10.2.0.0/16
+            EnableDnsSupport: true
+            EnableDnsHostnames: true
+            InstanceTenancy: default
+            Tags:
+              - Key: Name
+                Value: VPC2
+
+    VPC2Subnet:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPC2
+            CidrBlock: 10.2.1.0/24
+            MapPublicIpOnLaunch: true
+            Tags:
+              - Key: Name
+                Value: VPC2 Subnet
+
+    VPC2InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+              - Key: Name
+                Value: VPC2InternetGateway
+
+    VPC2AttachGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPC2
+            InternetGatewayId:
+                Ref: VPC2InternetGateway
+
+    VPC2SubnetRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPC2
+            Tags:
+              - Key: Name
+                Value: VPC2 Subnet Route Table
+
+    VPC2InternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPC2InternetGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId:
+                Ref: VPC2InternetGateway
+            RouteTableId:
+                Ref: VPC2SubnetRouteTable
+
+    VPC2SubnetRouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPC2SubnetRouteTable
+            SubnetId:
+                Ref: VPC2Subnet
+
+    VPC2InstanceSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH to Instance
+            VpcId:
+                Ref: VPC2
+            SecurityGroupIngress:
+              - IpProtocol: tcp
+                FromPort: '22'
+                ToPort: '22'
+                CidrIp: 0.0.0.0/0
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPC2 Instance Security Group
+
+    VPC2Instance:
+      Type: AWS::EC2::Instance
+      Properties:
+        KeyName: !Ref 'KeyName'
+        InstanceType: t2.micro
+        ImageId: !FindInMap [ AWSRegionToAMI, !Ref "AWS::Region", AMI ]
+        SubnetId: !Ref 'VPC2Subnet'
+        SourceDestCheck: 'true'      
+        SecurityGroupIds: [!Ref 'VPC2InstanceSecurityGroup']
+        Tags:
+        - Key: Name
+          Value: VPC2Instance
