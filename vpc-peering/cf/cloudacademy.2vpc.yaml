@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CLOUDACADEMY - Creates 2 VPCs with single subnet and single EC2 instance 
+Description: CLOUDACADEMY - Creates 2 VPCs, each VPC has a single subnet, single route table, IGW, and single EC2 instance 
 Parameters:
   KeyName:
     Description: EC2 KeyPair to enable SSH access to the EC2 instances
