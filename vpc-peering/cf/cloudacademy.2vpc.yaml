@@ -43,7 +43,7 @@ Resources:
     VPC1:
         Type: AWS::EC2::VPC
         Properties:
-            CidrBlock: 10.1.0.0/20
+            CidrBlock: 10.0.0.0/20
             EnableDnsSupport: true
             EnableDnsHostnames: true
             InstanceTenancy: default
@@ -56,7 +56,7 @@ Resources:
         Properties:
             VpcId:
                 Ref: VPC1
-            CidrBlock: 10.1.1.0/24
+            CidrBlock: 10.0.1.0/24
             MapPublicIpOnLaunch: true
             Tags:
               - Key: Name
