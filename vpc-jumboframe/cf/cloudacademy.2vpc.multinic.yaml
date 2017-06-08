@@ -1,0 +1,524 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates 2 VPCs, each VPC has 2 subnets, 2 route tables, IGW, and single EC2 instance with 2 ENIs each.
+Parameters:
+  KeyName:
+    Description: EC2 KeyPair to enable SSH access to the EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
+
+Mappings:
+    AWSRegionToAMI:
+        us-east-1:
+            AMI: ami-c58c1dd3
+        us-east-2:
+            AMI: ami-4191b524
+        us-west-1:
+            AMI: ami-7a85a01a
+        us-west-2:
+            AMI: ami-4836a428
+        ca-central-1:
+            AMI: ami-0bd66a6f
+        eu-west-1:
+            AMI: ami-01ccc867
+        eu-central-1:
+            AMI: ami-b968bad6
+        eu-west-2:
+            AMI: ami-b6daced2
+        ap-northeast-1:
+            AMI: ami-923d12f5
+        ap-northeast-2:
+            AMI: ami-9d15c7f3
+        ap-southeast-1:
+            AMI: ami-fc5ae39f
+        ap-southeast-2:
+            AMI: ami-162c2575
+        ap-south-1:
+            AMI: ami-52c7b43d
+        sa-east-1:
+            AMI: ami-37cfad5b
+        cn-north-1:
+            AMI: ami-3fe13752
+
+Resources:
+    VPC1:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 10.0.0.0/18
+            EnableDnsSupport: true
+            EnableDnsHostnames: true
+            InstanceTenancy: default
+            Tags:
+              - Key: Name
+                Value: VPC1
+
+    VPC2:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 192.168.0.0/18
+            EnableDnsSupport: true
+            EnableDnsHostnames: true
+            InstanceTenancy: default
+            Tags:
+              - Key: Name
+                Value: VPC2
+
+    VPC1Subnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPC1
+            CidrBlock: 10.0.10.0/24
+            MapPublicIpOnLaunch: true
+            Tags:
+              - Key: Name
+                Value: VPC1 Subnet1
+
+    VPC1Subnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPC1
+            CidrBlock: 10.0.20.0/24
+            MapPublicIpOnLaunch: true
+            Tags:
+              - Key: Name
+                Value: VPC1 Subnet2
+
+    VPC2Subnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPC2
+            CidrBlock: 192.168.10.0/24
+            MapPublicIpOnLaunch: true
+            Tags:
+              - Key: Name
+                Value: VPC2 Subnet1
+
+    VPC2Subnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPC2
+            CidrBlock: 192.168.20.0/24
+            MapPublicIpOnLaunch: true
+            Tags:
+              - Key: Name
+                Value: VPC2 Subnet2
+
+    VPC1InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+              - Key: Name
+                Value: VPC1 InternetGateway
+
+    VPC1AttachGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPC1
+            InternetGatewayId:
+                Ref: VPC1InternetGateway
+
+    VPC2InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+              - Key: Name
+                Value: VPC2 InternetGateway
+
+    VPC2AttachGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPC2
+            InternetGatewayId:
+                Ref: VPC2InternetGateway
+
+    VPC1SubnetRouteTable1:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPC1
+            Tags:
+              - Key: Name
+                Value: VPC1 Subnet Route Table1
+
+    VPC1SubnetRouteTable2:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPC1
+            Tags:
+              - Key: Name
+                Value: VPC1 Subnet Route Table2
+
+    VPC2SubnetRouteTable1:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPC2
+            Tags:
+              - Key: Name
+                Value: VPC2 Subnet Route Table1
+
+    VPC2SubnetRouteTable2:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPC2
+            Tags:
+              - Key: Name
+                Value: VPC2 Subnet Route Table2
+
+    VPC1InternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPC1InternetGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId:
+                Ref: VPC1InternetGateway
+            RouteTableId:
+                Ref: VPC1SubnetRouteTable1
+
+    VPC2InternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPC2InternetGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId:
+                Ref: VPC2InternetGateway
+            RouteTableId:
+                Ref: VPC2SubnetRouteTable1
+
+    VPC1SubnetRouteTable1Association:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPC1SubnetRouteTable1
+            SubnetId:
+                Ref: VPC1Subnet1
+
+    VPC1SubnetRouteTable2Association:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPC1SubnetRouteTable2
+            SubnetId:
+                Ref: VPC1Subnet2
+
+    VPC2SubnetRouteTable1Association:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPC2SubnetRouteTable1
+            SubnetId:
+                Ref: VPC2Subnet1
+
+    VPC2SubnetRouteTable2Association:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPC2SubnetRouteTable2
+            SubnetId:
+                Ref: VPC2Subnet2
+
+    VPC1ENI1SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH to Instance from Internet, and ALL inbound traffic from VPC2ENI1
+            VpcId:
+                Ref: VPC1
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: '22'
+                  ToPort: '22'
+                  CidrIp: 0.0.0.0/0
+                - IpProtocol: tcp
+                  FromPort: '0'
+                  ToPort: '65535'
+                  CidrIp: 192.168.10.0/24
+                - IpProtocol: icmp
+                  FromPort: -1
+                  ToPort: -1
+                  CidrIp: 192.168.10.0/24                
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPC1ENI1SecurityGroup ENI Security Group
+
+    VPC1ENI2SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow ALL inbound traffic from VPC2ENI2
+            VpcId:
+                Ref: VPC1
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: '0'
+                  ToPort: '65535'
+                  CidrIp: 192.168.20.0/24
+                - IpProtocol: icmp
+                  FromPort: -1
+                  ToPort: -1
+                  CidrIp: 192.168.20.0/24
+                  
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPC1ENI2SecurityGroup ENI Security Group
+                
+    VPC2ENI1SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH to Instance from Internet, and ALL inbound traffic from VPC1ENI1
+            VpcId:
+                Ref: VPC2
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: '22'
+                  ToPort: '22'
+                  CidrIp: 0.0.0.0/0
+                - IpProtocol: tcp
+                  FromPort: '0'
+                  ToPort: '65535'
+                  CidrIp: 10.0.10.0/24
+                - IpProtocol: icmp
+                  FromPort: -1
+                  ToPort: -1
+                  CidrIp: 10.0.10.0/24                
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPC2ENI1SecurityGroup ENI Security Group
+
+    VPC2ENI2SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow ALL inbound traffic from VPC1ENI2
+            VpcId:
+                Ref: VPC2
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: '0'
+                  ToPort: '65535'
+                  CidrIp: 10.0.20.0/24
+                - IpProtocol: icmp
+                  FromPort: -1
+                  ToPort: -1
+                  CidrIp: 10.0.20.0/24
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPC2ENI2SecurityGroup ENI Security Group
+
+    VPC1InstanceENI1:
+        Type: AWS::EC2::NetworkInterface
+        Properties:
+            SubnetId: !Ref VPC1Subnet1
+            Description: VPC1 ENI1 Interface for SSH traffic from Internet, and 9000 MTU private traffic
+            GroupSet: 
+            - !Ref VPC1ENI1SecurityGroup
+            SourceDestCheck: true
+            Tags:
+                - Key: Name
+                  Value: VPC1InstanceENI1
+
+    VPC1InstanceENI2:
+        Type: AWS::EC2::NetworkInterface
+        Properties:
+            SubnetId: !Ref VPC1Subnet2
+            Description: VPC1 ENI2 Interface for 1500 MTU private traffic
+            GroupSet: 
+            - !Ref VPC1ENI2SecurityGroup
+            SourceDestCheck: true
+            Tags:
+                - Key: Name
+                  Value: VPC1InstanceENI2
+
+    VPC2InstanceENI1:
+        Type: AWS::EC2::NetworkInterface
+        Properties:
+            SubnetId: !Ref VPC2Subnet1
+            Description: VPC2 ENI1 Interface for SSH traffic from Internet, and 9000 MTU private traffic
+            GroupSet: 
+            - !Ref VPC2ENI1SecurityGroup
+            SourceDestCheck: true
+            Tags:
+                - Key: Name
+                  Value: VPC2InstanceENI1
+
+    VPC2InstanceENI2:
+        Type: AWS::EC2::NetworkInterface
+        Properties:
+            SubnetId: !Ref VPC2Subnet2
+            Description: VPC2 ENI2 Interface for 1500 MTU private traffic
+            GroupSet: 
+            - !Ref VPC2ENI2SecurityGroup
+            SourceDestCheck: true
+            Tags:
+                - Key: Name
+                  Value: VPC2InstanceENI2
+
+    VPC1Instance:
+      Type: AWS::EC2::Instance
+      Properties:
+        KeyName: !Ref 'KeyName'
+        InstanceType: m4.large
+        ImageId: !FindInMap [ AWSRegionToAMI, !Ref "AWS::Region", AMI ]
+        NetworkInterfaces:
+            - NetworkInterfaceId: !Ref VPC1InstanceENI1
+              DeviceIndex: 0
+            - NetworkInterfaceId: !Ref VPC1InstanceENI2
+              DeviceIndex: 1
+        Tags:
+        - Key: Name
+          Value: VPC1 Instance
+        UserData:
+            Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                yum install tcpdump -y
+                cat <<EOF > /etc/dhcp/dhclient-eth0.conf
+                interface "eth0" {
+                supersede interface-mtu 1500;
+                }
+                EOF
+                cat <<EOF > /etc/dhcp/dhclient-eth1.conf
+                interface "eth1" {
+                supersede interface-mtu 9000;
+                }
+                EOF
+                service network restart                
+                echo "10   table1" >> /etc/iproute2/rt_tables
+                echo "20   table2" >> /etc/iproute2/rt_tables
+                ip rule add to 192.168.10.0/24 table table1
+                ip rule add to 192.168.20.0/24 table table2
+                ip route add 192.168.10.0/24 via 10.0.10.1 dev eth0 table table1
+                ip route add 192.168.20.0/24 via 10.0.20.1 dev eth1 table table2
+                ethtool --offload eth0 gso off
+                ethtool --offload eth0 tso off
+                ethtool --offload eth0 gro off                
+                ethtool --offload eth1 gso off
+                ethtool --offload eth1 tso off
+                ethtool --offload eth1 gro off
+
+    VPC2Instance:
+      Type: AWS::EC2::Instance
+      Properties:
+        KeyName: !Ref 'KeyName'
+        InstanceType: m4.large
+        ImageId: !FindInMap [ AWSRegionToAMI, !Ref "AWS::Region", AMI ]
+        NetworkInterfaces:
+            - NetworkInterfaceId: !Ref VPC2InstanceENI1
+              DeviceIndex: 0
+            - NetworkInterfaceId: !Ref VPC2InstanceENI2
+              DeviceIndex: 1
+        Tags:
+        - Key: Name
+          Value: VPC2 Instance
+        UserData:
+            Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                yum install tcpdump -y
+                cat <<EOF > /etc/dhcp/dhclient-eth0.conf
+                interface "eth0" {
+                supersede interface-mtu 1500;
+                }
+                EOF
+                cat <<EOF > /etc/dhcp/dhclient-eth1.conf
+                interface "eth1" {
+                supersede interface-mtu 9000;
+                }
+                EOF
+                service network restart
+                echo "10   table1" >> /etc/iproute2/rt_tables
+                echo "20   table2" >> /etc/iproute2/rt_tables
+                ip rule add to 10.0.10.0/24 table table1
+                ip rule add to 10.0.20.0/24 table table2
+                ip route add 10.0.10.0/24 via 192.168.10.1 dev eth0 table table1
+                ip route add 10.0.20.0/24 via 192.168.20.1 dev eth1 table table2
+                ethtool --offload eth0 gso off
+                ethtool --offload eth0 tso off
+                ethtool --offload eth0 gro off                
+                ethtool --offload eth1 gso off
+                ethtool --offload eth1 tso off
+                ethtool --offload eth1 gro off
+                
+    VPC1toVPC2PeeringConnection:
+        Type: AWS::EC2::VPCPeeringConnection
+        Properties:
+            VpcId:
+                Ref: VPC1
+            PeerVpcId:
+                Ref: VPC2
+
+    VPC1Subnet1PeeringRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPC1toVPC2PeeringConnection
+        Properties:
+            DestinationCidrBlock: 192.168.10.0/24
+            VpcPeeringConnectionId:
+                Ref: VPC1toVPC2PeeringConnection
+            RouteTableId:
+                Ref: VPC1SubnetRouteTable1
+
+    VPC1Subnet2PeeringRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPC1toVPC2PeeringConnection
+        Properties:
+            DestinationCidrBlock: 192.168.20.0/24
+            VpcPeeringConnectionId:
+                Ref: VPC1toVPC2PeeringConnection
+            RouteTableId:
+                Ref: VPC1SubnetRouteTable2
+
+    VPC2Subnet1PeeringRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPC1toVPC2PeeringConnection
+        Properties:
+            DestinationCidrBlock: 10.0.10.0/24
+            VpcPeeringConnectionId:
+                Ref: VPC1toVPC2PeeringConnection
+            RouteTableId:
+                Ref: VPC2SubnetRouteTable1
+
+    VPC2Subnet2PeeringRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPC1toVPC2PeeringConnection
+        Properties:
+            DestinationCidrBlock: 10.0.20.0/24
+            VpcPeeringConnectionId:
+                Ref: VPC1toVPC2PeeringConnection
+            RouteTableId:
+                Ref: VPC2SubnetRouteTable2
+
+    VPC1ENI1EIP:
+        Type: AWS::EC2::EIP
+        Properties:
+            Domain: vpc
+
+    VPC2ENI1EIP:
+        Type: AWS::EC2::EIP
+        Properties:
+            Domain: vpc
+  
+    VPC1AssociateENI1EIP:
+        Type: AWS::EC2::EIPAssociation
+        Properties:
+            AllocationId: !GetAtt VPC1ENI1EIP.AllocationId
+            NetworkInterfaceId: !Ref VPC1InstanceENI1
+  
+    VPC2AssociateENI1EIP:
+        Type: AWS::EC2::EIPAssociation
+        Properties:
+            AllocationId: !GetAtt VPC2ENI1EIP.AllocationId
+            NetworkInterfaceId: !Ref VPC2InstanceENI1            
