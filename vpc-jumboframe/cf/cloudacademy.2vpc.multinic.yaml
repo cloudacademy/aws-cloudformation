@@ -387,6 +387,7 @@ Resources:
             Fn::Base64: !Sub |
                 #!/bin/bash -xe
                 yum install tcpdump -y
+                #Step1. Configure MTUs on eth0 and eth1
                 cat <<EOF > /etc/dhcp/dhclient-eth0.conf
                 interface "eth0" {
                 supersede interface-mtu 1500;
@@ -397,19 +398,30 @@ Resources:
                 supersede interface-mtu 9000;
                 }
                 EOF
-                service network restart                
+                service network restart
+                #Step2. Create policy based routing on eth0 and eth1                
                 echo "10   table1" >> /etc/iproute2/rt_tables
                 echo "20   table2" >> /etc/iproute2/rt_tables
                 ip rule add to 192.168.10.0/24 table table1
                 ip rule add to 192.168.20.0/24 table table2
                 ip route add 192.168.10.0/24 via 10.0.10.1 dev eth0 table table1
                 ip route add 192.168.20.0/24 via 10.0.20.1 dev eth1 table table2
+                #Step3. Disable large send offload (LSO) on eth0 and eth1
                 ethtool --offload eth0 gso off
                 ethtool --offload eth0 tso off
                 ethtool --offload eth0 gro off                
                 ethtool --offload eth1 gso off
                 ethtool --offload eth1 tso off
                 ethtool --offload eth1 gro off
+                #Step4. Create sender script
+                cat <<EOF > /tmp/sender.sh
+                HOST=$1
+                PORT=10000
+                TIMEFORMAT='%3R'; dd if=/dev/zero bs=1024000 count=1024 | time -f "%es" nc $HOST $PORT
+                EOF
+                chown ec2-user:ec2-user /tmp/sender.sh
+                chmod u+x /tmp/sender.sh
+
 
     VPC2Instance:
       Type: AWS::EC2::Instance
@@ -429,6 +441,7 @@ Resources:
             Fn::Base64: !Sub |
                 #!/bin/bash -xe
                 yum install tcpdump -y
+                #Step1. Configure MTUs on eth0 and eth1
                 cat <<EOF > /etc/dhcp/dhclient-eth0.conf
                 interface "eth0" {
                 supersede interface-mtu 1500;
@@ -438,21 +451,31 @@ Resources:
                 interface "eth1" {
                 supersede interface-mtu 9000;
                 }
-                EOF
+                EOF        
                 service network restart
+                #Step2. Create policy based routing on eth0 and eth1
                 echo "10   table1" >> /etc/iproute2/rt_tables
                 echo "20   table2" >> /etc/iproute2/rt_tables
                 ip rule add to 10.0.10.0/24 table table1
                 ip rule add to 10.0.20.0/24 table table2
                 ip route add 10.0.10.0/24 via 192.168.10.1 dev eth0 table table1
                 ip route add 10.0.20.0/24 via 192.168.20.1 dev eth1 table table2
+                #Step3. Disable large send offload (LSO) on eth0 and eth1
                 ethtool --offload eth0 gso off
                 ethtool --offload eth0 tso off
                 ethtool --offload eth0 gro off                
                 ethtool --offload eth1 gso off
                 ethtool --offload eth1 tso off
                 ethtool --offload eth1 gro off
-                
+                #Step4. Create listner script and start in background
+                cat <<EOF > /tmp/listner.sh
+                PORT=10000
+                while true; do nc -l $PORT > /dev/null; done
+                EOF
+                chown ec2-user:ec2-user /tmp/listner.sh
+                chmod u+x /tmp/listner.sh
+                /tmp/listner.sh &
+
     VPC1toVPC2PeeringConnection:
         Type: AWS::EC2::VPCPeeringConnection
         Properties:
