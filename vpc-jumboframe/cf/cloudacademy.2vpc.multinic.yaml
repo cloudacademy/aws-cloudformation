@@ -68,7 +68,10 @@ Resources:
             VpcId:
                 Ref: VPC1
             CidrBlock: 10.0.10.0/24
-            MapPublicIpOnLaunch: true
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""
             Tags:
               - Key: Name
                 Value: VPC1 Subnet1
@@ -79,7 +82,10 @@ Resources:
             VpcId:
                 Ref: VPC1
             CidrBlock: 10.0.20.0/24
-            MapPublicIpOnLaunch: true
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""
             Tags:
               - Key: Name
                 Value: VPC1 Subnet2
@@ -90,7 +96,10 @@ Resources:
             VpcId:
                 Ref: VPC2
             CidrBlock: 192.168.10.0/24
-            MapPublicIpOnLaunch: true
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""
             Tags:
               - Key: Name
                 Value: VPC2 Subnet1
@@ -101,7 +110,10 @@ Resources:
             VpcId:
                 Ref: VPC2
             CidrBlock: 192.168.20.0/24
-            MapPublicIpOnLaunch: true
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""
             Tags:
               - Key: Name
                 Value: VPC2 Subnet2
@@ -321,7 +333,7 @@ Resources:
               - Key: Name
                 Value: VPC2ENI2SecurityGroup ENI Security Group
 
-    VPC1InstanceENI1:
+    VPC1InstanceENIEth0:
         Type: AWS::EC2::NetworkInterface
         Properties:
             SubnetId: !Ref VPC1Subnet1
@@ -331,9 +343,9 @@ Resources:
             SourceDestCheck: true
             Tags:
                 - Key: Name
-                  Value: VPC1InstanceENI1
+                  Value: VPC1InstanceENIEth0
 
-    VPC1InstanceENI2:
+    VPC1InstanceENIEth1:
         Type: AWS::EC2::NetworkInterface
         Properties:
             SubnetId: !Ref VPC1Subnet2
@@ -343,9 +355,9 @@ Resources:
             SourceDestCheck: true
             Tags:
                 - Key: Name
-                  Value: VPC1InstanceENI2
+                  Value: VPC1InstanceENIEth1
 
-    VPC2InstanceENI1:
+    VPC2InstanceENIEth0:
         Type: AWS::EC2::NetworkInterface
         Properties:
             SubnetId: !Ref VPC2Subnet1
@@ -355,9 +367,9 @@ Resources:
             SourceDestCheck: true
             Tags:
                 - Key: Name
-                  Value: VPC2InstanceENI1
+                  Value: VPC2InstanceENIEth0
 
-    VPC2InstanceENI2:
+    VPC2InstanceENIEth1:
         Type: AWS::EC2::NetworkInterface
         Properties:
             SubnetId: !Ref VPC2Subnet2
@@ -367,26 +379,38 @@ Resources:
             SourceDestCheck: true
             Tags:
                 - Key: Name
-                  Value: VPC2InstanceENI2
+                  Value: VPC2InstanceENIEth1
 
     VPC1Instance:
       Type: AWS::EC2::Instance
       Properties:
         KeyName: !Ref 'KeyName'
-        InstanceType: m4.large
+        InstanceType: t2.micro
         ImageId: !FindInMap [ AWSRegionToAMI, !Ref "AWS::Region", AMI ]
         NetworkInterfaces:
-            - NetworkInterfaceId: !Ref VPC1InstanceENI1
+            - NetworkInterfaceId: !Ref VPC1InstanceENIEth0
               DeviceIndex: 0
-            - NetworkInterfaceId: !Ref VPC1InstanceENI2
+            - NetworkInterfaceId: !Ref VPC1InstanceENIEth1
               DeviceIndex: 1
         Tags:
         - Key: Name
           Value: VPC1 Instance
+        - Key: Name
+          Value: VPC1 Instance  
         UserData:
             Fn::Base64: !Sub |
                 #!/bin/bash -xe
                 yum install tcpdump -y
+                yum install figlet -y
+                #Step0. add an ASCII SSH banner
+                cat <<EOF > /etc/update-motd.d/80-name                
+                #!/bin/bash
+                figlet VPC1
+                echo **SENDER**
+                echo http://cloudacademy.com
+                echo
+                EOF
+                chmod +x /etc/update-motd.d/80-name
                 #Step1. Configure MTUs on eth0 and eth1
                 cat <<EOF > /etc/dhcp/dhclient-eth0.conf
                 interface "eth0" {
@@ -413,26 +437,36 @@ Resources:
                 ethtool --offload eth1 gso off
                 ethtool --offload eth1 tso off
                 ethtool --offload eth1 gro off
-                #Step4. Create sender script
-                cat <<EOF > /tmp/sender.sh
-                HOST=$1
+                #Step4. Create eth0 sender script
+                cat <<EOF > /tmp/send.via.eth0.sh
+                #!/bin/bash
+                HOST=${VPC2InstanceENIEth0.PrimaryPrivateIpAddress}                
                 PORT=10000
-                TIMEFORMAT='%3R'; dd if=/dev/zero bs=1024000 count=1024 | time -f "%es" nc $HOST $PORT
+                TIMEFORMAT='%3R'; dd if=/dev/zero bs=1024 count=1024 | time -f "%es" nc \$HOST \$PORT
                 EOF
-                chown ec2-user:ec2-user /tmp/sender.sh
-                chmod u+x /tmp/sender.sh
+                chown ec2-user:ec2-user /tmp/send.via.eth0.sh
+                chmod u+x /tmp/send.via.eth0.sh
+                #Step5. Create eth1 sender script
+                cat <<EOF > /tmp/send.via.eth1.sh
+                #!/bin/bash
+                HOST=${VPC2InstanceENIEth1.PrimaryPrivateIpAddress}                
+                PORT=10000
+                TIMEFORMAT='%3R'; dd if=/dev/zero bs=1024 count=1024 | time -f "%es" nc \$HOST \$PORT
+                EOF
+                chown ec2-user:ec2-user /tmp/send.via.eth1.sh
+                chmod u+x /tmp/send.via.eth1.sh
 
 
     VPC2Instance:
       Type: AWS::EC2::Instance
       Properties:
         KeyName: !Ref 'KeyName'
-        InstanceType: m4.large
+        InstanceType: t2.micro
         ImageId: !FindInMap [ AWSRegionToAMI, !Ref "AWS::Region", AMI ]
         NetworkInterfaces:
-            - NetworkInterfaceId: !Ref VPC2InstanceENI1
+            - NetworkInterfaceId: !Ref VPC2InstanceENIEth0
               DeviceIndex: 0
-            - NetworkInterfaceId: !Ref VPC2InstanceENI2
+            - NetworkInterfaceId: !Ref VPC2InstanceENIEth1
               DeviceIndex: 1
         Tags:
         - Key: Name
@@ -441,6 +475,16 @@ Resources:
             Fn::Base64: !Sub |
                 #!/bin/bash -xe
                 yum install tcpdump -y
+                yum install figlet -y
+                #Step0. add an ASCII SSH banner
+                cat <<EOF > /etc/update-motd.d/80-name                
+                #!/bin/bash
+                figlet VPC2
+                echo **RECEIVER**
+                echo http://cloudacademy.com
+                echo
+                EOF
+                chmod +x /etc/update-motd.d/80-name
                 #Step1. Configure MTUs on eth0 and eth1
                 cat <<EOF > /etc/dhcp/dhclient-eth0.conf
                 interface "eth0" {
@@ -451,7 +495,7 @@ Resources:
                 interface "eth1" {
                 supersede interface-mtu 9000;
                 }
-                EOF        
+                EOF
                 service network restart
                 #Step2. Create policy based routing on eth0 and eth1
                 echo "10   table1" >> /etc/iproute2/rt_tables
@@ -467,14 +511,62 @@ Resources:
                 ethtool --offload eth1 gso off
                 ethtool --offload eth1 tso off
                 ethtool --offload eth1 gro off
-                #Step4. Create listner script and start in background
-                cat <<EOF > /tmp/listner.sh
+                #Step4. Create receiver script and start in background
+                cat <<EOF > /tmp/receiver.sh
+                #!/bin/bash
                 PORT=10000
-                while true; do nc -l $PORT > /dev/null; done
+                while true; do nc -l \$PORT > /dev/null; done
                 EOF
-                chown ec2-user:ec2-user /tmp/listner.sh
-                chmod u+x /tmp/listner.sh
-                /tmp/listner.sh &
+                chown ec2-user:ec2-user /tmp/receiver.sh
+                chmod u+x /tmp/receiver.sh
+                #Step5. Create eth0 packetcapture script
+                cat <<EOF > /tmp/packetcapture.via.eth0.sh
+                #!/bin/bash
+                HOST=${VPC1InstanceENIEth0.PrimaryPrivateIpAddress}
+                PORT=10000
+                tcpdump -n -i eth0 port \$PORT and src \$HOST -w /tmp/packets.1Mb.eth0.dump
+                EOF
+                chown ec2-user:ec2-user /tmp/packetcapture.via.eth0.sh
+                chmod u+x /tmp/packetcapture.via.eth0.sh
+                #Step6. Create eth1 packetcapture script
+                cat <<EOF > /tmp/packetcapture.via.eth1.sh
+                #!/bin/bash
+                HOST=${VPC1InstanceENIEth1.PrimaryPrivateIpAddress}
+                PORT=10000
+                tcpdump -n -i eth0 port \$PORT and src \$HOST -w /tmp/packets.1Mb.eth1.dump
+                EOF
+                chown ec2-user:ec2-user /tmp/packetcapture.via.eth1.sh
+                chmod u+x /tmp/packetcapture.via.eth1.sh
+                #Step7. Create eth0 packetcapture analysis script
+                cat <<EOF > /tmp/packetcapture.analysis.eth0.sh
+                #!/bin/bash
+                tcpdump -v -r /tmp/packets.1Mb.eth0.dump tcp | grep -o  "], length [0-9]*" | cut -d" " -f3 | awk '{ sum += \$1 } END { print sum }'
+                EOF
+                chown ec2-user:ec2-user /tmp/packetcapture.analysis.eth0.sh
+                chmod u+x /tmp/packetcapture.analysis.eth0.sh
+                #Step8. Create eth1 packetcapture analysis script
+                cat <<EOF > /tmp/packetcapture.analysis.eth1.sh
+                #!/bin/bash
+                tcpdump -v -r /tmp/packets.1Mb.eth1.dump tcp | grep -o  "], length [0-9]*" | cut -d" " -f3 | awk '{ sum += \$1 } END { print sum }'
+                EOF
+                chown ec2-user:ec2-user /tmp/packetcapture.analysis.eth1.sh
+                chmod u+x /tmp/packetcapture.analysis.eth1.sh
+                #Step9. Create eth0 packetcapture analysis frame count script
+                cat <<EOF > /tmp/packetcapture.analysis.framecount.eth0.sh
+                #!/bin/bash
+                tcpdump -r packets.1Mb.eth0.dump 2>/dev/null | wc -l
+                EOF
+                chown ec2-user:ec2-user /tmp/packetcapture.analysis.framecount.eth0.sh
+                chmod u+x /tmp/packetcapture.analysis.framecount.eth0.sh
+                #Step10. Create eth1 packetcapture analysis frame count script
+                cat <<EOF > /tmp/packetcapture.analysis.framecount.eth1.sh
+                #!/bin/bash
+                tcpdump -r packets.1Mb.eth1.dump 2>/dev/null | wc -l
+                EOF
+                chown ec2-user:ec2-user /tmp/packetcapture.analysis.framecount.eth1.sh
+                chmod u+x /tmp/packetcapture.analysis.framecount.eth1.sh
+
+
 
     VPC1toVPC2PeeringConnection:
         Type: AWS::EC2::VPCPeeringConnection
@@ -538,10 +630,10 @@ Resources:
         Type: AWS::EC2::EIPAssociation
         Properties:
             AllocationId: !GetAtt VPC1ENI1EIP.AllocationId
-            NetworkInterfaceId: !Ref VPC1InstanceENI1
+            NetworkInterfaceId: !Ref VPC1InstanceENIEth0
   
     VPC2AssociateENI1EIP:
         Type: AWS::EC2::EIPAssociation
         Properties:
             AllocationId: !GetAtt VPC2ENI1EIP.AllocationId
-            NetworkInterfaceId: !Ref VPC2InstanceENI1            
+            NetworkInterfaceId: !Ref VPC2InstanceENIEth0            
