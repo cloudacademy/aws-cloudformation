@@ -533,7 +533,7 @@ Resources:
                 #!/bin/bash
                 HOST=${VPC1InstanceENIEth1.PrimaryPrivateIpAddress}
                 PORT=10000
-                tcpdump -n -i eth0 port \$PORT and src \$HOST -w /tmp/packets.1Mb.eth1.dump
+                tcpdump -n -i eth1 port \$PORT and src \$HOST -w /tmp/packets.1Mb.eth1.dump
                 EOF
                 chown ec2-user:ec2-user /tmp/packetcapture.via.eth1.sh
                 chmod u+x /tmp/packetcapture.via.eth1.sh
@@ -636,4 +636,12 @@ Resources:
         Type: AWS::EC2::EIPAssociation
         Properties:
             AllocationId: !GetAtt VPC2ENI1EIP.AllocationId
-            NetworkInterfaceId: !Ref VPC2InstanceENIEth0            
+            NetworkInterfaceId: !Ref VPC2InstanceENIEth0
+
+Outputs:
+  VPC1SenderEIP:
+    Description: SSH Public IP for VPC1.Sender Instance
+    Value: !GetAtt VPC1Instance.PublicIp
+  VPC2ReceiverEIP:
+    Description: SSH Public IP for VPC2.Receiver Instance
+    Value: !GetAtt VPC2Instance.PublicIp
