@@ -403,6 +403,7 @@ Resources:
                 yum install tcpdump -y
                 yum install figlet -y
                 #Step0. add an ASCII SSH banner
+                #================================================
                 cat <<EOF > /etc/update-motd.d/80-name                
                 #!/bin/bash
                 figlet VPC1
@@ -412,6 +413,7 @@ Resources:
                 EOF
                 chmod +x /etc/update-motd.d/80-name
                 #Step1. Configure MTUs on eth0 and eth1
+                #================================================
                 cat <<EOF > /etc/dhcp/dhclient-eth0.conf
                 interface "eth0" {
                 supersede interface-mtu 1500;
@@ -424,6 +426,7 @@ Resources:
                 EOF
                 service network restart
                 #Step2. Create policy based routing on eth0 and eth1                
+                #================================================
                 echo "10   table1" >> /etc/iproute2/rt_tables
                 echo "20   table2" >> /etc/iproute2/rt_tables
                 ip rule add to 192.168.10.0/24 table table1
@@ -431,6 +434,7 @@ Resources:
                 ip route add 192.168.10.0/24 via 10.0.10.1 dev eth0 table table1
                 ip route add 192.168.20.0/24 via 10.0.20.1 dev eth1 table table2
                 #Step3. Disable large send offload (LSO) on eth0 and eth1
+                #================================================
                 ethtool --offload eth0 gso off
                 ethtool --offload eth0 tso off
                 ethtool --offload eth0 gro off                
@@ -438,6 +442,7 @@ Resources:
                 ethtool --offload eth1 tso off
                 ethtool --offload eth1 gro off
                 #Step4. Create eth0 sender script
+                #================================================
                 cat <<EOF > /tmp/send.via.eth0.sh
                 #!/bin/bash
                 HOST=${VPC2InstanceENIEth0.PrimaryPrivateIpAddress}                
@@ -447,6 +452,7 @@ Resources:
                 chown ec2-user:ec2-user /tmp/send.via.eth0.sh
                 chmod u+x /tmp/send.via.eth0.sh
                 #Step5. Create eth1 sender script
+                #================================================
                 cat <<EOF > /tmp/send.via.eth1.sh
                 #!/bin/bash
                 HOST=${VPC2InstanceENIEth1.PrimaryPrivateIpAddress}                
@@ -477,6 +483,7 @@ Resources:
                 yum install tcpdump -y
                 yum install figlet -y
                 #Step0. add an ASCII SSH banner
+                #================================================
                 cat <<EOF > /etc/update-motd.d/80-name                
                 #!/bin/bash
                 figlet VPC2
@@ -486,6 +493,7 @@ Resources:
                 EOF
                 chmod +x /etc/update-motd.d/80-name
                 #Step1. Configure MTUs on eth0 and eth1
+                #================================================
                 cat <<EOF > /etc/dhcp/dhclient-eth0.conf
                 interface "eth0" {
                 supersede interface-mtu 1500;
@@ -498,6 +506,7 @@ Resources:
                 EOF
                 service network restart
                 #Step2. Create policy based routing on eth0 and eth1
+                #================================================
                 echo "10   table1" >> /etc/iproute2/rt_tables
                 echo "20   table2" >> /etc/iproute2/rt_tables
                 ip rule add to 10.0.10.0/24 table table1
@@ -505,6 +514,7 @@ Resources:
                 ip route add 10.0.10.0/24 via 192.168.10.1 dev eth0 table table1
                 ip route add 10.0.20.0/24 via 192.168.20.1 dev eth1 table table2
                 #Step3. Disable large send offload (LSO) on eth0 and eth1
+                #================================================
                 ethtool --offload eth0 gso off
                 ethtool --offload eth0 tso off
                 ethtool --offload eth0 gro off                
@@ -512,6 +522,7 @@ Resources:
                 ethtool --offload eth1 tso off
                 ethtool --offload eth1 gro off
                 #Step4. Create receiver script and start in background
+                #================================================
                 cat <<EOF > /tmp/receiver.sh
                 #!/bin/bash
                 PORT=10000
@@ -520,6 +531,7 @@ Resources:
                 chown ec2-user:ec2-user /tmp/receiver.sh
                 chmod u+x /tmp/receiver.sh
                 #Step5. Create eth0 packetcapture script
+                #================================================
                 cat <<EOF > /tmp/packetcapture.via.eth0.sh
                 #!/bin/bash
                 HOST=${VPC1InstanceENIEth0.PrimaryPrivateIpAddress}
@@ -529,6 +541,7 @@ Resources:
                 chown ec2-user:ec2-user /tmp/packetcapture.via.eth0.sh
                 chmod u+x /tmp/packetcapture.via.eth0.sh
                 #Step6. Create eth1 packetcapture script
+                #================================================
                 cat <<EOF > /tmp/packetcapture.via.eth1.sh
                 #!/bin/bash
                 HOST=${VPC1InstanceENIEth1.PrimaryPrivateIpAddress}
@@ -538,6 +551,7 @@ Resources:
                 chown ec2-user:ec2-user /tmp/packetcapture.via.eth1.sh
                 chmod u+x /tmp/packetcapture.via.eth1.sh
                 #Step7. Create eth0 packetcapture analysis script
+                #================================================
                 cat <<EOF > /tmp/packetcapture.analysis.eth0.sh
                 #!/bin/bash
                 tcpdump -v -r /tmp/packets.1Mb.eth0.dump tcp | grep -o  "], length [0-9]*" | cut -d" " -f3 | awk '{ sum += \$1 } END { print sum }'
@@ -545,6 +559,7 @@ Resources:
                 chown ec2-user:ec2-user /tmp/packetcapture.analysis.eth0.sh
                 chmod u+x /tmp/packetcapture.analysis.eth0.sh
                 #Step8. Create eth1 packetcapture analysis script
+                #================================================
                 cat <<EOF > /tmp/packetcapture.analysis.eth1.sh
                 #!/bin/bash
                 tcpdump -v -r /tmp/packets.1Mb.eth1.dump tcp | grep -o  "], length [0-9]*" | cut -d" " -f3 | awk '{ sum += \$1 } END { print sum }'
@@ -552,6 +567,7 @@ Resources:
                 chown ec2-user:ec2-user /tmp/packetcapture.analysis.eth1.sh
                 chmod u+x /tmp/packetcapture.analysis.eth1.sh
                 #Step9. Create eth0 packetcapture analysis frame count script
+                #================================================
                 cat <<EOF > /tmp/packetcapture.analysis.framecount.eth0.sh
                 #!/bin/bash
                 tcpdump -r packets.1Mb.eth0.dump 2>/dev/null | wc -l
@@ -559,13 +575,13 @@ Resources:
                 chown ec2-user:ec2-user /tmp/packetcapture.analysis.framecount.eth0.sh
                 chmod u+x /tmp/packetcapture.analysis.framecount.eth0.sh
                 #Step10. Create eth1 packetcapture analysis frame count script
+                #================================================
                 cat <<EOF > /tmp/packetcapture.analysis.framecount.eth1.sh
                 #!/bin/bash
                 tcpdump -r packets.1Mb.eth1.dump 2>/dev/null | wc -l
                 EOF
                 chown ec2-user:ec2-user /tmp/packetcapture.analysis.framecount.eth1.sh
                 chmod u+x /tmp/packetcapture.analysis.framecount.eth1.sh
-
 
 
     VPC1toVPC2PeeringConnection:
