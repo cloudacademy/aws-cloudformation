@@ -1,0 +1,16 @@
+TIMEFORMAT='%3R'; dd if=/dev/zero bs=1024000 count=1024 | time -f "%es" nc 192.168.20.206 1337
+while true; do nc -l 1337 > /dev/null; done
+
+tcpdump -v -r packets.dump tcp | grep "length" |grep -v "^[^0-9]" | sed s/.*length// | cut -d')' -f 1 | awk '{sum+=$1; print sum}'
+
+tcpdump -v -r packets.1M.dump tcp | grep -o  "], length [0-9]*" | cut -d" " -f3 | awk '{ sum += $1 } END { print sum }'
+
+
+sudo tcpdump -n -i eth1 port 1337 and src 10.0.20.213 -w packets.1M.20net.dump
+
+TIMEFORMAT='%3R'; dd if=/dev/zero bs=1024 count=1024 | time -f "%es" nc 192.168.20.199 1337
+
+
+sudo route -n
+netstat -rn
+ip route list
