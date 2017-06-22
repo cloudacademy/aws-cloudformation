@@ -1,0 +1,96 @@
+set interfaces ethernet eth1 address '<VYOS-ETH1-PRIVATE-IP>'
+
+! --------------------------------------------------------------------------------
+
+! Internet Key Exchange (IKE) Configuration
+!
+! A policy is established for the supported ISAKMP encryption,
+! authentication, Diffie-Hellman, lifetime, and key parameters.
+! Please note, these sample configurations are for the minimum requirement of AES128, SHA1, and DH Group 2.
+! You will need to modify these sample configuration files to take advantage of AES256, SHA256, or other DH groups like 2, 14-18, 22, 23, and 24.
+! The address of the external interface for your customer gateway must be a static address. 
+! Your customer gateway may reside behind a device performing network address translation (NAT).
+! To ensure that NAT traversal (NAT-T) can function, you must adjust your firewall !rules to unblock UDP port 4500. If not behind NAT, we recommend disabling NAT-T.
+!
+
+set vpn ipsec ike-group AWS lifetime '28800'
+set vpn ipsec ike-group AWS proposal 1 dh-group '2'
+set vpn ipsec ike-group AWS proposal 1 encryption 'aes128'
+set vpn ipsec ike-group AWS proposal 1 hash 'sha1'
+
+! The IPSec (Phase 2) proposal defines the protocol, authentication,
+! encryption, and lifetime parameters for our IPSec security association.
+! Please note, you may use these additionally supported IPSec parameters for encryption like AES256 and other DH groups like 2, 5, 14-18, 22, 23, and 24.
+!
+
+set vpn ipsec ipsec-interfaces interface 'eth0'
+set vpn ipsec esp-group AWS compression 'disable'
+set vpn ipsec esp-group AWS lifetime '3600'
+set vpn ipsec esp-group AWS mode 'tunnel'
+set vpn ipsec esp-group AWS pfs 'enable'
+set vpn ipsec esp-group AWS proposal 1 encryption 'aes128'
+set vpn ipsec esp-group AWS proposal 1 hash 'sha1'
+
+! This option enables IPSec Dead Peer Detection, which causes periodic
+! messages to be sent to ensure a Security Association remains operational.
+!
+set vpn ipsec ike-group AWS dead-peer-detection action 'restart'
+set vpn ipsec ike-group AWS dead-peer-detection interval '15'
+set vpn ipsec ike-group AWS dead-peer-detection timeout '30'
+
+! --------------------------------------------------------------------------------
+! IPSec Tunnel #1
+! --------------------------------------------------------------------------------
+
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> authentication mode 'pre-shared-secret'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> authentication pre-shared-secret '<TUNNEL1-PRESHAREDKEY-LINE-30>'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> description 'VPC tunnel 1'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> ike-group 'AWS'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> local-address '<VYOS-ETH0-PRIVATE-IP>'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> vti bind 'vti0'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> vti esp-group 'AWS'
+
+! --------------------------------------------------------------------------------
+! #2: Tunnel Interface Configuration
+!
+!  The tunnel interface is configured with the internal IP address.
+
+set interfaces vti vti0 address '<TUNNEL1-CGW-INSIDE-IP-LINE-87>'
+set interfaces vti vti0 description 'VPC tunnel 1'
+set interfaces vti vti0 mtu '1436'
+
+! --------------------------------------------------------------------------------
+! IPSec Tunnel #2
+! --------------------------------------------------------------------------------
+! #1: Internet Key Exchange (IKE) Configuration
+!
+! A policy is established for the supported ISAKMP encryption,
+! authentication, Diffie-Hellman, lifetime, and key parameters.
+! Please note, these sample configurations are for the minimum requirement of AES128, SHA1, and DH Group 2.
+! You will need to modify these sample configuration files to take advantage of AES256, SHA256, or other DH groups like 2, 14-18, 22, 23, and 24.
+! The address of the external interface for your customer gateway must be a static address. 
+! Your customer gateway may reside behind a device performing network address translation (NAT).
+! To ensure that NAT traversal (NAT-T) can function, you must adjust your firewall !rules to unblock UDP port 4500. If not behind NAT, we recommend disabling NAT-T.
+!
+
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> authentication mode 'pre-shared-secret'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> authentication pre-shared-secret '<TUNNEL2-PRESHAREDKEY-LINE-120>'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> description 'VPC tunnel 2'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> ike-group 'AWS'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> local-address '<VYOS-ETH0-PRIVATE-IP>'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> vti bind 'vti1'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> vti esp-group 'AWS'
+
+! --------------------------------------------------------------------------------
+! #2: Tunnel Interface Configuration
+!
+!  The tunnel interface is configured with the internal IP address.
+
+set interfaces vti vti1 address '<TUNNEL2-CGW-INSIDE-IP-LINE-177>'
+set interfaces vti vti1 description 'VPC tunnel 2'
+set interfaces vti vti1 mtu '1436'
+
+! --------------------------------------------------------------------------------
+
+set protocols static interface-route 192.168.0.0/20 next-hop-interface 'vti0'
+set protocols static interface-route 192.168.0.0/20 next-hop-interface 'vti1'

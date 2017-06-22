@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates 1 VPC (righthand side). VPC-CLOUD will contain VPG, CGW, and VPN Connection. VPC will also host a single EC2 test instance
+Parameters:
+  KeyName:
+    Description: EC2 KeyPair to enable SSH access to the EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
+  StaticRoutesOnlyForVPN:
+    Description: Indicates whether the VPN connection requires static routes.
+    Default: true
+    Type: String
+    AllowedValues: [true, false]
+  VPCCORPCustomerGatewayIP:
+    Description: The Customer Gateway IP - this is the EIP assigned to the VYOS EXTERNAL eth0 interface
+    Type: String
+Mappings:
+    AWSRegionToAWSAMI:
+        us-east-1:
+            AMI: ami-c58c1dd3
+        us-west-1:
+            AMI: ami-7a85a01a
+        us-west-2:
+            AMI: ami-4836a428
+        eu-west-1:
+            AMI: ami-01ccc867
+        eu-central-1:
+            AMI: ami-b968bad6
+        ap-northeast-1:
+            AMI: ami-923d12f5
+        ap-northeast-2:
+            AMI: ami-9d15c7f3
+        ap-southeast-1:
+            AMI: ami-fc5ae39f
+        ap-southeast-2:
+            AMI: ami-162c2575
+        ap-south-1:
+            AMI: ami-52c7b43d
+        sa-east-1:
+            AMI: ami-37cfad5b
+
+Resources:
+    VPCCLOUD:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 192.168.0.0/20
+            EnableDnsSupport: true
+            EnableDnsHostnames: true
+            InstanceTenancy: default
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD
+
+    VPCCLOUDSubnet:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            CidrBlock: 192.168.1.0/24
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD Subnet
+
+    VPCCLOUDInternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD InternetGateway
+
+    VPCCLOUDVirtualPrivateGateway:
+        Type: AWS::EC2::VPNGateway
+        Properties: 
+            Type: ipsec.1
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD VirtualPrivateGateway
+
+    VPCCLOUDAttachInternetGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            InternetGatewayId:
+                Ref: VPCCLOUDInternetGateway
+
+    VPCCLOUDAttachVirtualPrivateGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            VpnGatewayId:
+                Ref: VPCCLOUDVirtualPrivateGateway
+
+    VPCCLOUDCustomerGateway:
+        Type: "AWS::EC2::CustomerGateway"
+        Properties: 
+            Type: ipsec.1
+            BgpAsn: 65000
+            IpAddress: 
+                Ref: VPCCORPCustomerGatewayIP
+
+    VPCCLOUDSubnetRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD Subnet Route Table
+
+    VPCCLOUDInternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPCCLOUDInternetGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId:
+                Ref: VPCCLOUDInternetGateway
+            RouteTableId:
+                Ref: VPCCLOUDSubnetRouteTable
+
+    VPCCLOUDSubnetRouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPCCLOUDSubnetRouteTable
+            SubnetId:
+                Ref: VPCCLOUDSubnet
+
+    VPCCLOUDInstanceSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH to Instance
+            VpcId:
+                Ref: VPCCLOUD
+            SecurityGroupIngress:
+              - IpProtocol: tcp
+                FromPort: '22'
+                ToPort: '22'
+                CidrIp: 0.0.0.0/0
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD Instance Security Group
+
+    VPCCLOUDInstance:
+        Type: AWS::EC2::Instance
+        Properties:
+            KeyName: !Ref 'KeyName'
+            InstanceType: t2.micro
+            ImageId: !FindInMap [ AWSRegionToAWSAMI, !Ref "AWS::Region", AMI ]
+            SubnetId: !Ref 'VPCCLOUDSubnet'
+            SourceDestCheck: 'true'      
+            SecurityGroupIds: [!Ref 'VPCCLOUDInstanceSecurityGroup']
+            Tags:
+                - Key: Name
+                  Value: VPCCLOUD Private Test Instance
+
+    VPCCLOUDInstanceEIP:
+        Type: AWS::EC2::EIP
+        Properties:
+            Domain: vpc
+  
+    VPCCLOUDAssociateENI1EIP:
+        Type: AWS::EC2::EIPAssociation
+        Properties:
+            AllocationId: !GetAtt VPCCLOUDInstanceEIP.AllocationId
+            InstanceId: !Ref VPCCLOUDInstance
+
+    VPCCLOUDVpnConnection: 
+        Type: "AWS::EC2::VPNConnection"
+        Properties: 
+            Type: ipsec.1
+            StaticRoutesOnly:
+                !Ref StaticRoutesOnlyForVPN
+            CustomerGatewayId: 
+                !Ref VPCCLOUDCustomerGateway
+            VpnGatewayId: 
+                !Ref VPCCLOUDVirtualPrivateGateway
+            Tags:
+                - Key: Name
+                  Value: VPC VPN IPSec Demo
+
+Outputs:
+  VPCCloudEC2TestInstanceEIP:
+    Description: SSH Public IP for VPCCLOUDInstance Test Instance
+    Value: !GetAtt VPCCLOUDInstance.PublicIp

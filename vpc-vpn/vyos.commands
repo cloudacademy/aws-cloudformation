@@ -1,0 +1,23 @@
+set interfaces ethernet eth1 address '10.0.20.17/24'
+
+set protocols static interface-route 192.168.0.0/20 next-hop-interface 'vti0'
+set protocols static interface-route 192.168.0.0/20 next-hop-interface 'vti1'
+
+show vpn ike sa
+show vpn debug detail
+show vpn ike status
+show vpn ipsec 
+
+show interfaces
+show ip route
+monitor log
+show log tail
+monitor interfaces
+
+restart vpn
+
+set protocols bgp 65000 network 10.0.30.0/24
+set protocols static route 10.0.30.0/24 next-hop 10.0.20.1 distance 100
+
+show ip bgp neighbors 
+show ip bgp neighbors 169.254.20.217 advertised-routes

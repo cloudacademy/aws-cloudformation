@@ -1,0 +1,315 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates 1 VPC (lefthand side). VPC-CORP will simulate CorpHQ network, hosting a VYOS instance with 2 ENIs. VPC contains 3 subnets and single EC2 test instance
+Parameters:
+  KeyName:
+    Description: EC2 KeyPair to enable SSH access to the EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
+
+Mappings:
+    AWSRegionToVYOS117AMI:
+        us-east-1:
+            AMI: ami-b8e1a5af
+        us-west-1:
+            AMI: ami-8597d9e5
+        us-west-2:
+            AMI: ami-ac23fccc
+        eu-west-1:
+            AMI: ami-b1f944c2
+        eu-central-1:
+            AMI: ami-49cf3b26
+        ap-northeast-1:
+            AMI: ami-5812e939
+        ap-northeast-2:
+            AMI: ami-76e52f18
+        ap-southeast-1:
+            AMI: ami-3df6525e
+        ap-southeast-2:
+            AMI: ami-1b8bbb78
+        ap-south-1:
+            AMI: ami-7034401f
+        sa-east-1:
+            AMI: ami-1a37a476
+
+    AWSRegionToAWSAMI:
+        us-east-1:
+            AMI: ami-c58c1dd3
+        us-west-1:
+            AMI: ami-7a85a01a
+        us-west-2:
+            AMI: ami-4836a428
+        eu-west-1:
+            AMI: ami-01ccc867
+        eu-central-1:
+            AMI: ami-b968bad6
+        ap-northeast-1:
+            AMI: ami-923d12f5
+        ap-northeast-2:
+            AMI: ami-9d15c7f3
+        ap-southeast-1:
+            AMI: ami-fc5ae39f
+        ap-southeast-2:
+            AMI: ami-162c2575
+        ap-south-1:
+            AMI: ami-52c7b43d
+        sa-east-1:
+            AMI: ami-37cfad5b
+
+Resources:
+    VPCCORP:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 10.0.0.0/18
+            EnableDnsSupport: true
+            EnableDnsHostnames: true
+            InstanceTenancy: default
+            Tags:
+            - Key: Name
+              Value: VPCCORP-CorpHQ
+
+    VPCCORPVYOSExternalSubnet:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCORP
+            CidrBlock: 10.0.10.0/24
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""            
+            Tags:
+              - Key: Name
+                Value: VPCCORP VYOS External Zone
+
+    VPCCORPVYOSInternalSubnet:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCORP
+            CidrBlock: 10.0.20.0/24
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""            
+            Tags:
+              - Key: Name
+                Value: VPCCORP VYOS Internal Zone
+
+    VPCCORPCORPPrivateSubnet:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCORP
+            CidrBlock: 10.0.30.0/24
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""            
+            Tags:
+              - Key: Name
+                Value: VPCCORP CORP Private Zone
+
+    VPCCORPInternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+              - Key: Name
+                Value: VPCCORP InternetGateway
+
+    VPCCORPAttachGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPCCORP
+            InternetGatewayId:
+                Ref: VPCCORPInternetGateway
+
+    VPCCORPVYOSExternalSubnetRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPCCORP
+            Tags:
+              - Key: Name
+                Value: VPCCORP VYOS External Subnet Route Table
+
+    VPCCORPVYOSInternalSubnetRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPCCORP
+            Tags:
+              - Key: Name
+                Value: VPCCORP VYOS Internal Subnet Route Table
+
+    VPCCORPCORPPrivateSubnetRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPCCORP
+            Tags:
+              - Key: Name
+                Value: VPCCORP Private Subnet Route Table
+
+    VPCCORPVYOSExternalSubnetRouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPCCORPVYOSExternalSubnetRouteTable
+            SubnetId:
+                Ref: VPCCORPVYOSExternalSubnet
+
+    VPCCORPVYOSInternalSubnetRouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPCCORPVYOSInternalSubnetRouteTable
+            SubnetId:
+                Ref: VPCCORPVYOSInternalSubnet
+
+    VPCCORPCORPPrivateSubnetRouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPCCORPCORPPrivateSubnetRouteTable
+            SubnetId:
+                Ref: VPCCORPCORPPrivateSubnet
+
+    VPCCORPInternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPCCORPInternetGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId:
+                Ref: VPCCORPInternetGateway
+            RouteTableId:
+                Ref: VPCCORPVYOSExternalSubnetRouteTable
+
+    VPCCORPVYOSExternalSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH to Instance
+            VpcId:
+                Ref: VPCCORP
+            SecurityGroupIngress:
+              - IpProtocol: tcp
+                FromPort: '22'
+                ToPort: '22'
+                CidrIp: 0.0.0.0/0
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPCCORP VYOS EXTERNAL Security Group
+
+    VPCCORPVYOSInternalSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH to Instance
+            VpcId:
+                Ref: VPCCORP
+            SecurityGroupIngress:
+              - IpProtocol: tcp
+                FromPort: '22'
+                ToPort: '22'
+                CidrIp: 0.0.0.0/0
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPCCORP VYOS INTERNAL Security Group
+
+    VPCCORPCORPPrivateSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH to Instance
+            VpcId:
+                Ref: VPCCORP
+            SecurityGroupIngress:
+              - IpProtocol: tcp
+                FromPort: '22'
+                ToPort: '22'
+                CidrIp: 0.0.0.0/0
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPCCORP Instance Security Group
+
+    VPCCORPVYOSInstanceENIExternalEth0:
+        Type: AWS::EC2::NetworkInterface
+        Properties:
+            SubnetId: !Ref VPCCORPVYOSExternalSubnet
+            Description: VPCCORP ENI1 Interface for SSH traffic from Internet, and 9000 MTU private traffic
+            GroupSet: 
+            - !Ref VPCCORPVYOSExternalSecurityGroup
+            SourceDestCheck: false
+            Tags:
+                - Key: Name
+                  Value: VPCCORP VYOS Instance ENI External eth0
+
+    VPCCORPVYOSInstanceENIInternalEth1:
+        Type: AWS::EC2::NetworkInterface
+        Properties:
+            SubnetId: !Ref VPCCORPVYOSInternalSubnet
+            Description: VPCCORP ENI2 Interface for 1500 MTU private traffic
+            GroupSet: 
+            - !Ref VPCCORPVYOSInternalSecurityGroup
+            SourceDestCheck: false
+            Tags:
+                - Key: Name
+                  Value: VPCCORP VYOS Instance ENI Internal eth1
+
+    VPCCORPVYOSInstance:
+      Type: AWS::EC2::Instance
+      Properties:
+        KeyName: !Ref 'KeyName'
+        InstanceType: t2.micro
+        ImageId: !FindInMap [ AWSRegionToVYOS117AMI, !Ref "AWS::Region", AMI ]
+        NetworkInterfaces:
+            - NetworkInterfaceId: !Ref VPCCORPVYOSInstanceENIExternalEth0
+              DeviceIndex: 0
+            - NetworkInterfaceId: !Ref VPCCORPVYOSInstanceENIInternalEth1
+              DeviceIndex: 1        
+        Tags:
+            - Key: Name
+              Value: VPCCORP VYOS Instance
+
+    VPCCORPENI1EIP:
+        Type: AWS::EC2::EIP
+        Properties:
+            Domain: vpc
+  
+    VPCCORPAssociateENI1EIP:
+        Type: AWS::EC2::EIPAssociation
+        Properties:
+            AllocationId: !GetAtt VPCCORPENI1EIP.AllocationId
+            NetworkInterfaceId: !Ref VPCCORPVYOSInstanceENIExternalEth0
+
+    VPCCORPPrivateInstance:
+      Type: AWS::EC2::Instance
+      Properties:
+        KeyName: !Ref 'KeyName'
+        InstanceType: t2.micro
+        SubnetId: !Ref VPCCORPCORPPrivateSubnet
+        SecurityGroupIds: [!Ref VPCCORPCORPPrivateSecurityGroup]
+        ImageId: !FindInMap [ AWSRegionToAWSAMI, !Ref "AWS::Region", AMI ]
+        Tags:
+            - Key: Name
+              Value: VPCCORP Private Test Instance
+  
+Outputs:
+  VYOSInstancePublicIP:
+    Description: Public IP assigned to VYOS EXTERNAL eth0 interface
+    Value: !GetAtt VPCCORPVYOSInstance.PublicIp
+  VYOSInstanceEXTERNALPrivateIP:
+    Description: Private IP assigned to VYOS EXTERNAL eth0 interface
+    Value: !GetAtt VPCCORPVYOSInstanceENIExternalEth0.PrimaryPrivateIpAddress    
+  VYOSInstanceINTERNALPrivateIP:
+    Description: Private IP assigned to VYOS INTERNAL eth1 interface
+    Value: !GetAtt VPCCORPVYOSInstanceENIInternalEth1.PrimaryPrivateIpAddress
+
+
