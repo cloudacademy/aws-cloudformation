@@ -1,4 +1,4 @@
-set interfaces ethernet eth1 address '<VYOS-ETH1-PRIVATE-IP>'
+set interfaces ethernet eth1 address '<VYOS-ETH1-PRIVATE-IP>/24'
 
 ! --------------------------------------------------------------------------------
 
