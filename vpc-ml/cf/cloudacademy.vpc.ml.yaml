@@ -138,11 +138,16 @@ Resources:
         Type: AWS::EC2::Instance
         Properties:
             KeyName: !Ref KeyName
+            NetworkInterfaces: 
+                - AssociatePublicIpAddress: true
+                  DeviceIndex: 0
+                  GroupSet: 
+                    - !Ref VPCCLOUDInstanceSecurityGroup
+                  SubnetId: 
+                    Ref: VPCCLOUDSubnet
             InstanceType: !Ref MLInstanceType
             ImageId: !FindInMap [ AWSRegionToUbuntuAMI, !Ref "AWS::Region", AMI ]
-            SubnetId: !Ref 'VPCCLOUDSubnet'
-            SourceDestCheck: 'true'      
-            SecurityGroupIds: [!Ref 'VPCCLOUDInstanceSecurityGroup']
+            SourceDestCheck: true
             Tags:
                 - Key: Name
                   Value: VPCCLOUD ML Instance
@@ -175,18 +180,9 @@ Resources:
                     printf "\napp.run(host='0.0.0.0', debug=False)\n" >> src/flask_app.py
                     flask run
 
-    VPCCLOUDInstanceEIP:
-        Type: AWS::EC2::EIP
-        Properties:
-            Domain: vpc
-  
-    VPCCLOUDAssociateENI1EIP:
-        Type: AWS::EC2::EIPAssociation
-        Properties:
-            AllocationId: !GetAtt VPCCLOUDInstanceEIP.AllocationId
-            InstanceId: !Ref VPCCLOUDInstance
-
 Outputs:
-  VPCCloudEC2MLInstanceEIP:
-    Description: SSH Public IP for VPCCLOUDInstance ML Instance
-    Value: !GetAtt VPCCLOUDInstance.PublicIp
+  FraudDetectionPredictCommand:
+    Description: Fraud detection Predict Command
+    Value: !Sub 
+        - "curl --header 'Content-Type: application/json' -vX POST http://${HOST}:5000/predict -d @fraudtest.json"
+        - { HOST: !GetAtt VPCCLOUDInstance.PublicIp }
