@@ -21,6 +21,14 @@ getAMIID(){
     echo -e "\tAMI: ${AMI}"
 }
 
+
+getAMIID(){
+    echo $1:
+    AMI=`aws ec2 describe-images --filter Name=name,Values="ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server-20170721" --query 'Images[0].ImageId' --output text --region $1`
+    echo -e "\tAMI: ${AMI}"
+}
+
+
 getAMIID us-east-1
 getAMIID us-east-2
 getAMIID us-west-1
