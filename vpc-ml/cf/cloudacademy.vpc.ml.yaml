@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates VPC and host ML instance
+Parameters:
+  KeyName:
+    Description: EC2 KeyPair to enable SSH access to the EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
+  MLGitRepoURL:
+    Description: URL for the CloudAcademy GITHUB Fraud Detection repository
+    Default: https://github.com/cloudacademy/fraud-detection.git
+    Type: String
+  MLInstanceType:
+    Description: ML EC2 instance type
+    Default: t2.medium
+    Type: String
+    AllowedValues: [t2.medium]
+    ConstraintDescription: must be a valid EC2 instance type - e.g. t2.medium
+Mappings:
+    AWSRegionToUbuntuAMI:
+        us-east-1:
+            AMI: ami-cd0f5cb6
+        us-east-1:
+            AMI: ami-cd0f5cb6
+        us-east-2:
+            AMI: ami-10547475
+        us-west-1:
+            AMI: ami-09d2fb69
+        us-west-2:
+            AMI: ami-6e1a0117
+        ca-central-1:
+            AMI: ami-9818a7fc
+        eu-west-1:
+            AMI: ami-785db401
+        eu-central-1:
+            AMI: ami-1e339e71
+        eu-west-2:
+            AMI: ami-996372fd
+        ap-northeast-1:
+            AMI: ami-ea4eae8c
+        ap-northeast-2:
+            AMI: ami-d28a53bc
+        ap-southeast-1:
+            AMI: ami-6f198a0c
+        ap-southeast-2:
+            AMI: ami-e2021d81
+        ap-south-1:
+            AMI: ami-099fe766
+        sa-east-1:
+            AMI: ami-10186f7c
+
+Resources:
+    VPCCLOUD:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 192.168.0.0/20
+            EnableDnsSupport: true
+            EnableDnsHostnames: true
+            InstanceTenancy: default
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD
+
+    VPCCLOUDSubnet:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            CidrBlock: 192.168.1.0/24
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD Subnet
+
+    VPCCLOUDInternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD InternetGateway
+
+    VPCCLOUDAttachInternetGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            InternetGatewayId:
+                Ref: VPCCLOUDInternetGateway
+
+    VPCCLOUDSubnetRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD Subnet Route Table
+
+    VPCCLOUDInternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPCCLOUDInternetGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId:
+                Ref: VPCCLOUDInternetGateway
+            RouteTableId:
+                Ref: VPCCLOUDSubnetRouteTable
+
+    VPCCLOUDSubnetRouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPCCLOUDSubnetRouteTable
+            SubnetId:
+                Ref: VPCCLOUDSubnet
+
+    VPCCLOUDInstanceSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH to Instance
+            VpcId:
+                Ref: VPCCLOUD
+            SecurityGroupIngress:
+              - IpProtocol: tcp
+                FromPort: '22'
+                ToPort: '22'
+                CidrIp: 0.0.0.0/0
+              - IpProtocol: tcp
+                FromPort: '5000'
+                ToPort: '5000'
+                CidrIp: 0.0.0.0/0                
+            SecurityGroupEgress:
+              - IpProtocol: -1
+                CidrIp: 0.0.0.0/0
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD Instance Security Group
+
+    VPCCLOUDInstance:
+        Type: AWS::EC2::Instance
+        Properties:
+            KeyName: !Ref KeyName
+            InstanceType: !Ref MLInstanceType
+            ImageId: !FindInMap [ AWSRegionToUbuntuAMI, !Ref "AWS::Region", AMI ]
+            SubnetId: !Ref 'VPCCLOUDSubnet'
+            SourceDestCheck: 'true'      
+            SecurityGroupIds: [!Ref 'VPCCLOUDInstanceSecurityGroup']
+            Tags:
+                - Key: Name
+                  Value: VPCCLOUD ML Instance
+            UserData:
+                Fn::Base64: !Sub |
+                    #!/bin/bash
+                    exec > >(tee /var/log/userdata.log)
+                    exec 2>&1
+                    whoami
+                    echo deployment script 1.0
+
+                    echo =======================================
+                                        
+                    apt-get update -y
+                    apt-get install python-pip -y
+                    apt-get install unzip -y
+                    pip install virtualenv
+                    mkdir /ml
+                    cd /ml
+                    virtualenv frauddetectionenv
+                    source frauddetectionenv/bin/activate
+                    git clone https://github.com/cloudacademy/fraud-detection
+                    cd fraud-detection
+                    pip install -r requirements-dev.txt
+                    curl -O https://clouda-datasets.s3.amazonaws.com/creditcard.csv.zip
+                    unzip creditcard.csv.zip
+                    mv creditcard.csv ./data/
+                    python src/train.py 
+                    export FLASK_APP=src/flask_app.py
+                    printf "\napp.run(host='0.0.0.0', debug=False)\n" >> src/flask_app.py
+                    flask run
+
+    VPCCLOUDInstanceEIP:
+        Type: AWS::EC2::EIP
+        Properties:
+            Domain: vpc
+  
+    VPCCLOUDAssociateENI1EIP:
+        Type: AWS::EC2::EIPAssociation
+        Properties:
+            AllocationId: !GetAtt VPCCLOUDInstanceEIP.AllocationId
+            InstanceId: !Ref VPCCLOUDInstance
+
+Outputs:
+  VPCCloudEC2MLInstanceEIP:
+    Description: SSH Public IP for VPCCLOUDInstance ML Instance
+    Value: !GetAtt VPCCLOUDInstance.PublicIp
