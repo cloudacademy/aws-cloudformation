@@ -177,6 +177,16 @@ Resources:
                     mv creditcard.csv ./data/
                     python src/train.py 
                     export FLASK_APP=src/flask_app.py
+
+                    echo =======================================
+
+                    printf "\n" >> src/flask_app.py
+                    printf "@app.route(u\"/health\", methods=[u\"GET\"])\n" >> src/flask_app.py
+                    printf "def health():\n" >> src/flask_app.py
+                    printf "\treturn \"OK\", 200\n" >> src/flask_app.py
+
+                    echo =======================================
+
                     printf "\napp.run(host='0.0.0.0', debug=False)\n" >> src/flask_app.py
                     flask run
 

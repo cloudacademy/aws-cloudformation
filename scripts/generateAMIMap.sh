@@ -29,6 +29,12 @@ getAMIID(){
 }
 
 
+getAMIID(){
+    echo $1:
+    AMI=`aws ec2 describe-images --filter Name=name,Values="amzn-ami-2017.03.a-amazon-ecs-optimized" --query 'Images[0].ImageId' --output text --region $1`
+    echo -e "\tAMI: ${AMI}"
+}
+
 getAMIID us-east-1
 getAMIID us-east-2
 getAMIID us-west-1
