@@ -47,9 +47,9 @@ Resources:
         Image: aws/codebuild/docker:1.12.1
         EnvironmentVariables:
           - Name: AWS_ACCOUNT_ID
-            Value: ${AWS::AccountId}
+            Value: !Sub ${AWS::AccountId}
           - Name: AWS_REG
-            Value: ${AWS::Region}            
+            Value: !Sub ${AWS::Region}            
           - Name: IMAGE_REPO_NAME
             Value: !Ref ECRRepoName
           - Name: IMAGE_TAG
