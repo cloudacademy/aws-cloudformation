@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates new CodeBuild and ECR build environment
+Parameters:
+  ECRRepoName:
+    Description: Name of the ECR repo
+    Default: frauddetectrepo
+    Type: String
+  FraudDetectImageTagName:
+    Description: ECR Tag Name applied to Fraud Detection docker image
+    Default: frauddetect
+    Type: String    
+Resources:
+  MyRepository: 
+    Type: "AWS::ECR::Repository"
+    Properties: 
+      RepositoryName: !Ref ECRRepoName
+      RepositoryPolicyText:
+        Version: '2008-10-17'
+        Statement:
+        - Sid: AllowPushPull
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Condition:
+            ArnLike:
+              aws:SourceArn: !Sub arn:aws:iam:${AWS::AccountId}:user/*
+          Action:
+          - ecr:GetDownloadUrlForLayer
+          - ecr:BatchGetImage
+          - ecr:BatchCheckLayerAvailability
+          - ecr:PutImage
+          - ecr:InitiateLayerUpload
+          - ecr:UploadLayerPart
+          - ecr:CompleteLayerUpload
+  MLBuildImageProject:
+    Type: AWS::CodeBuild::Project
+    DependsOn: CodeBuildRole
+    Properties:
+      Name: MLBuildProject
+      Description: Builds ML Image and uploads to ECR
+      ServiceRole: !Ref CodeBuildRole
+      Artifacts:
+        Type: no_artifacts
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/docker:1.12.1
+        EnvironmentVariables:
+          - Name: AWS_ACCOUNT_ID
+            Value: ${AWS::AccountId}
+          - Name: AWS_REG
+            Value: ${AWS::Region}            
+          - Name: IMAGE_REPO_NAME
+            Value: !Ref ECRRepoName
+          - Name: IMAGE_TAG
+            Value: !Ref FraudDetectImageTagName
+      Source:
+        Location: arn:aws:s3:::codebuild-frauddetect/code.zip
+        Type: S3
+      TimeoutInMinutes: 10
+      Tags:
+        - Key: Key1
+          Value: Value1
+        - Key: Key2
+          Value: Value2
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: codebuild.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess

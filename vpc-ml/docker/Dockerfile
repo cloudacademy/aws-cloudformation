@@ -1,5 +1,5 @@
 FROM ubuntu:16.04
-MAINTAINER VCA Technology <developers@vcatechnology.com>
+MAINTAINER CloudAcademy <jeremy.cook@cloudacademy.com>
 
 RUN apt-get update -y 
 RUN apt-get install python-pip -y
