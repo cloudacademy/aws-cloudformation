@@ -1,0 +1,12 @@
+docker run -p 127.0.0.1:80:5000 ca/frauddetect
+
+import StringIO
+import zipfile
+
+mf = StringIO.StringIO()
+with zipfile.ZipFile(mf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+    zf.writestr('file1.txt', "hi")
+    zf.writestr('file2.txt', "hi")
+
+with open("./my_zip.zip", "wb") as f: # use `wb` mode
+    f.write(mf.getvalue())
