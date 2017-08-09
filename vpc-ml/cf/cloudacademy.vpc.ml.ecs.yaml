@@ -5,10 +5,6 @@ Parameters:
     Description: EC2 KeyPair to enable SSH access to the EC2 instances
     Type: AWS::EC2::KeyPair::KeyName
     ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
-  MLGitRepoURL:
-    Description: URL for the CloudAcademy GITHUB Fraud Detection repository
-    Default: https://github.com/cloudacademy/fraud-detection.git
-    Type: String
   ECRRepoName:
     Description: Name of the ECR repo
     Default: frauddetectrepo
