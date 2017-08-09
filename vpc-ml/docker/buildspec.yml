@@ -1,0 +1,28 @@
+version: 0.2
+
+# REQUIRED ENVIRONMENT VARIABLES
+# AWS_KEY         - AWS Access Key ID
+# AWS_SEC         - AWS Secret Access Key
+# AWS_REG         - AWS Default Region     (e.g. us-west-2)
+# AWS_OUT         - AWS Output Format      (e.g. json)
+# AWS_PROF        - AWS Profile name       (e.g. central-account)
+# IMAGE_REPO_NAME - Name of the image repo (e.g. my-app)
+# IMAGE_TAG       - Tag for the image      (e.g. latest)
+# AWS_ACCOUNT_ID  - Remote AWS account id  (e.g. 555555555555)
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --region ${AWS_REG})
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REG.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REG.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
