@@ -8,7 +8,7 @@ Parameters:
   MLGitRepoURL:
     Description: URL for the CloudAcademy GITHUB Fraud Detection repository
     Default: https://github.com/cloudacademy/fraud-detection.git
-    Type: 
+    Type: String
   ECRRepoName:
     Description: Name of the ECR repo
     Default: frauddetectrepo
