@@ -69,9 +69,10 @@ To install this environment, complete the following steps
 4. Leave all input parameter defaults as is - or adjust as neccessary
 5. Once the CloudFormation stack has completed building successfully - take a look at the Outputs tab and copy the `FraudDetectionPredictCommand` value. The `FraudDetectionPredictCommand` contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
 
-Note: This command needs to run from within the `vpc-ml/test` folder as it references the `fraudtest.json` test file.
-
-Note: The endpoint listens on port 5000 and hits the EC2 instance public IP.
+Notes: 
+* Wait before firing tests as the fraud detection model needs 5-10mins to build/train 
+* This command needs to run from within the `vpc-ml/test` folder as it references the `fraudtest.json` test file.
+* The endpoint listens on port 5000 and hits the EC2 instance public IP.
 
 ```
 curl --header 'Content-Type: application/json' -vX POST http://52.18.231.127:5000/predict -d @fraudtest.json
@@ -224,7 +225,8 @@ To install this environment, complete the following parts, Part1 and Part2:
 6. Confirm that the new ECS fraud detection cluster has been been configured with 1 Service, which in turn has been configured with 2 RUNNING Tasks.
 7. Back within the CloudFormation service - take a look at the Outputs tab of the just built stack and copy the `FraudDetectionPredictCommand` value. The `FraudDetectionPredictCommand` contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
 
-Note: This command needs to run from within the `vpc-ml/test` folder as it references the `fraudtest.json` test file.
+Notes:
+* This command needs to run from within the `vpc-ml/test` folder as it references the `fraudtest.json` test file.
 
 Note: The endpoint listens on port 80 and hits the ALB
 
