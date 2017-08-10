@@ -65,7 +65,7 @@ Resources:
   FraudDetectCodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: FraudDetectCodeBuildRole 
+      RoleName: FraudDetectCodeBuildRole2 
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -73,8 +73,33 @@ Resources:
           Principal:
             Service: codebuild.amazonaws.com
           Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
+      Path: /
+      Policies:
+      - PolicyName: FraudDetectCodeBuildPolicy
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: [
+              'ecr:*'
+            ]
+            Resource: '*'
+          - Effect: Allow
+            Action: [
+              'logs:CreateLogGroup',
+              'logs:CreateLogStream',
+              'logs:PutLogEvents'
+            ]
+            Resource: [
+              !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/FraudDetectionBuildProject',
+              !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/FraudDetectionBuildProject:*'
+            ]
+          - Effect: Allow
+            Action: [
+              's3:PutObject',
+              's3:GetObject',
+              's3:GetObjectVersion'
+            ]
+            Resource: !Sub 'arn:aws:s3:::codepipeline-${AWS::Region}-*'
 
   FraudDetectCodeBuildEC2ClusterInstanceRole:
     Type: AWS::IAM::Role
