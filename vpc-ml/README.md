@@ -9,7 +9,7 @@ Contains YAML CloudFormation templates used to build 2 example serverful environ
 ### Overview
 The creation of this environment involves spinning up a single CloudFormation stack using just the template `cloudacademy.vpc.ml.yaml`.
 
-This environment consists of an EC2 instance. The EC2 instance bootstraps itself at launch time. The bootsrapping sequence involves cloning from a CA FraudDetection GITHUB repository, downloads a sample credit card dataset, then installs itself, builds the model, and then finally spins up HTTP API endpoint - to which prediction requests can be sent to.
+This environment consists of an EC2 instance. The EC2 instance bootstraps itself at launch time. The bootsrapping sequence involves cloning from a CA FraudDetection GITHUB repository, downloads a sample credit card dataset, then installs itself, builds the model, and then finally spins up an HTTP API endpoint - to which prediction requests can be sent to.
 
 ### EC2 Userdata Bootstrapping Script
 ```
