@@ -368,12 +368,14 @@ Resources:
             Roles: [FraudDetectCodeBuildEC2ClusterInstanceRole]
 
 Outputs:
-    ecsservice:
+    FraudDetectionPredictCommand:
+        Description: Fraud detection Predict Command
+        Value: !Sub 
+            - "curl --header 'Content-Type: application/json' -vX POST http://${HOST}/predict -d @fraudtest.json"
+            - { HOST: !GetAtt ECSALB.DNSName }
+    FraudDetectionECSService:
         Value: !Ref 'service'
-    ecscluster:
+    FraudDetectionCluster:
         Value: !Ref 'ECSCluster'
-    ECSALB:
-        Description: Your ALB DNS URL
-        Value: !Join ['', [!GetAtt [ECSALB, DNSName]]]
-    taskdef:
+    FraudDetectionTaskDef:
         Value: !Ref 'taskdefinition'
