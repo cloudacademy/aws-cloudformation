@@ -4,10 +4,10 @@ Contains YAML CloudFormation templates used to build 2 example serverful environ
 ## Environment 1 - Simple
 
 ### Files
-* `cloudacademy.vpc.ml.yaml`
+* `./cf/cloudacademy.vpc.ml.yaml`
 
 ### Overview
-The creation of this environment involves spinning up a single CloudFormation stack using just the template `cloudacademy.vpc.ml.yaml`.
+The creation of this environment involves spinning up a single CloudFormation stack using just the template `./cf/cloudacademy.vpc.ml.yaml`.
 
 This environment consists of an EC2 instance. The EC2 instance bootstraps itself at launch time. The bootsrapping sequence involves cloning from a CA FraudDetection GITHUB repository, downloads a sample credit card dataset, then installs itself, builds the model, and then finally spins up an HTTP API endpoint - to which prediction requests can be sent to.
 
@@ -65,11 +65,11 @@ To install this environment, complete the following steps
 
 1. Log into AWS Console, as a user with admin priviledges
 2. Select the CloudFormation service
-3. Launch a new CloudFormation stack - by uploading the `cloudacademy.vpc.ml.yaml` template
+3. Launch a new CloudFormation stack - by uploading the `./cf/cloudacademy.vpc.ml.yaml` template
 4. Leave all input parameter defaults as is - or adjust as neccessary
 5. Once the CloudFormation stack has completed building successfully - take a look at the Outputs tab and copy the `FraudDetectionPredictCommand` value. The `FraudDetectionPredictCommand` contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
 
-Note: This command needs to run from within the `vpc-ml` folder as it references the `fraudtest.json` test file.
+Note: This command needs to run from within the `vpc-ml/test` folder as it references the `fraudtest.json` test file.
 
 Note: The endpoint listens on port 5000 and hits the EC2 instance public IP.
 
@@ -99,11 +99,11 @@ curl --header 'Content-Type: application/json' -vX POST http://52.18.231.127:500
 ## Environment 2 - Complex
 
 ### Files
-* `cloudacademy.buildenv.yaml` - Part1 (Buildtime Components)
-* `cloudacademy.vpc.ml.ecs.yaml` - Part2 (Runtime Components)
+* `./cf/cloudacademy.buildenv.yaml` - Part1 (Buildtime Components)
+* `./cf/cloudacademy.vpc.ml.ecs.yaml` - Part2 (Runtime Components)
 
 ### Overview
-The creation of this environment involves spinning up two CloudFormation stacks using the templates `cloudacademy.buildenv.yaml` and `cloudacademy.vpc.ml.ecs.yaml`, in this order.
+The creation of this environment involves spinning up two CloudFormation stacks using the templates `./cf/cloudacademy.buildenv.yaml` and `./cf/cloudacademy.vpc.ml.ecs.yaml`, in this order.
 
 This environment consists of two distinct parts:
 
@@ -204,10 +204,10 @@ Runtime Components
 To install this environment, complete the following parts, Part1 and Part2:
 
 * Part1 (Buildtime Components):
-`cloudacademy.buildenv.yaml`
+`./cf/cloudacademy.buildenv.yaml`
 1. Log into AWS Console, as a user with admin priviledges
 2. Select the CloudFormation service
-3. Launch new CloudFormation stack - by uploading the `cloudacademy.buildenv.yaml` template
+3. Launch new CloudFormation stack - by uploading the `./cf/cloudacademy.buildenv.yaml` template
 4. Leave all input parameter defaults as is - or adjust as neccessary
 5. Once the CloudFormation stack has completed building successfully - navigate to the CodeBuild service within the AWS console.
 6. Within CodeBuild select the newly created CodeBuild project and start build
@@ -215,16 +215,16 @@ To install this environment, complete the following parts, Part1 and Part2:
 8. Navigate to the ECR service within the AWS console, and confirm that a new fraud detection Docker Image has been successfully registered.
 
 * Part2 (Runtime Components):
-`cloudacademy.vpc.ml.ecs.yaml`
+`./cf/cloudacademy.vpc.ml.ecs.yaml`
 1. Navigate back to the CloudFormation service
-2. Launch new CloudFormation stack - by uploading the `cloudacademy.vpc.ml.ecs.yaml` template
+2. Launch new CloudFormation stack - by uploading the `./cf/cloudacademy.vpc.ml.ecs.yaml` template
 3. Leave all input parameter defaults as is - or adjust as neccessary
 4. Once the CloudFormation stack has completed building successfully - navigate to the ECS service within the AWS console.
 5. Confirm that the new ECS fraud detection cluster has been created successfully. 
 6. Confirm that the new ECS fraud detection cluster has been been configured with 1 Service, which in turn has been configured with 2 RUNNING Tasks.
 7. Back within the CloudFormation service - take a look at the Outputs tab of the just built stack and copy the `FraudDetectionPredictCommand` value. The `FraudDetectionPredictCommand` contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
 
-Note: This command needs to run from within the `vpc-ml` folder as it references the `fraudtest.json` test file.
+Note: This command needs to run from within the `vpc-ml/test` folder as it references the `fraudtest.json` test file.
 
 Note: The endpoint listens on port 80 and hits the ALB
 
