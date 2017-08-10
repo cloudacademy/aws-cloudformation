@@ -201,9 +201,9 @@ Runtime Components
 * EC2 Instance
 
 ### Installation
-To install this environment, complete the following steps
+To install this environment, complete the following parts, Part1 and Part2:
 
-Part1 (Buildtime Components):
+* Part1 (Buildtime Components):
 `cloudacademy.buildenv.yaml`
 1. Log into AWS Console, as a user with admin priviledges
 2. Select the CloudFormation service
@@ -214,15 +214,15 @@ Part1 (Buildtime Components):
 7. Confirm that the build completes successfully - this will result in a new Docker Image published into a ECR repo.
 8. Navigate to the ECR service within the AWS console, and confirm that a new fraud detection Docker Image has been successfully registered.
 
-Part2 (Runtime Components):
+* Part2 (Runtime Components):
 `cloudacademy.vpc.ml.ecs.yaml`
-9. Navigate back to the CloudFormation service
-10. Launch new CloudFormation stack - by uploading the `cloudacademy.vpc.ml.ecs.yaml` template
-11. Leave all input parameter defaults as is - or adjust as neccessary
-12. Once the CloudFormation stack has completed building successfully - navigate to the ECS service within the AWS console.
-13. Confirm that the new ECS fraud detection cluster has been created successfully. 
-14. Confirm that the new ECS fraud detection cluster has been been configured with 1 Service, which in turn has been configured with 2 RUNNING Tasks.
-16. Back within the CloudFormation service - take a look at the Outputs tab of the just built stack and copy the `FraudDetectionPredictCommand` value. The `FraudDetectionPredictCommand` contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
+1. Navigate back to the CloudFormation service
+2. Launch new CloudFormation stack - by uploading the `cloudacademy.vpc.ml.ecs.yaml` template
+3. Leave all input parameter defaults as is - or adjust as neccessary
+4. Once the CloudFormation stack has completed building successfully - navigate to the ECS service within the AWS console.
+5. Confirm that the new ECS fraud detection cluster has been created successfully. 
+6. Confirm that the new ECS fraud detection cluster has been been configured with 1 Service, which in turn has been configured with 2 RUNNING Tasks.
+7. Back within the CloudFormation service - take a look at the Outputs tab of the just built stack and copy the `FraudDetectionPredictCommand` value. The `FraudDetectionPredictCommand` contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
 
 Note: This command needs to run from within the `vpc-ml` folder as it references the `fraudtest.json` test file.
 
