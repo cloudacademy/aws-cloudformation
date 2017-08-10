@@ -71,7 +71,7 @@ To install this environment, complete the following steps
 
 Note: This command needs to run from within the `vpc-ml` folder as it references the `fraudtest.json` test file.
 
-Note: The endpoint listens on port 5000 and hits EC2 instance public IP 
+Note: The endpoint listens on port 5000 and hits the EC2 instance public IP.
 
 ```
 curl --header 'Content-Type: application/json' -vX POST http://52.18.231.127:5000/predict -d @fraudtest.json
@@ -108,11 +108,11 @@ The creation of this environment involves spinning up two CloudFormation stacks 
 This environment consists of two distinct parts:
 
 ### Part 1 - Build Environment
-AWS CodeBuild which creates a Docker Image containing the fraud detection model. The CodeBuild build phase involves cloning from a CA FraudDetection GITHUB repository, downloads a sample credit card dataset, then installs itself, builds the model, and then finally sets up an HTTP API endpoint - to which prediction requests can be sent to. Once the Docker Image is succesfully built it is published into a custom ECR repository. 
+AWS CodeBuild which creates a Docker Image containing the fraud detection model. The CodeBuild build phase involves building a Docker Image. A `Dockerfile` specifies the instructions: cloning from a CA FraudDetection GITHUB repository, downloading a sample credit card dataset, then installs itself, builds the model, and then finally sets up an HTTP API endpoint - to which prediction requests can be sent to. Once the Docker Image is succesfully built it is published into a custom ECR repository. 
 
 ### Part 2 - Runtime Environment
 An AWS ECS cluster is spun up. The ECS cluster sits behind a Application Load Balancer (ALB). The ECS cluster in this demo consists of a single EC2 instance.
-The ECS cluster hosts a single Service which in turn is configured to run 2 tasks - based on the Docker Image created in Part 1 and stored in ECR. Incoming Fraud Detection request are aimed at the ALB - which in turns forwards them downstream to the running Docker contains on the ECS cluster.
+The ECS cluster hosts a single ECS Service which in turn is configured to run 2 ECS Tasks - based on the Docker Image created in Part 1 and stored in ECR. Incoming fraud fetection requests are aimed at the ALB - which in turns forwards them downstream to the Docker containers (tasks) running on the ECS cluster.
 
 ### CodeBuild BuildSpec
 ```
