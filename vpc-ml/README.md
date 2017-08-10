@@ -67,7 +67,7 @@ To install this environment, complete the following steps
 2. Select the CloudFormation service
 3. Launch a new CloudFormation stack - by uploading the `cloudacademy.vpc.ml.yaml` template
 4. Leave all input parameter defaults as is - or adjust as neccessary
-5. Once the CloudFormation stack has completed building successfully - take a look at the Outputs tab and copy the FraudDetectionPredictCommand value. The FraudDetectionPredictCommand contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
+5. Once the CloudFormation stack has completed building successfully - take a look at the Outputs tab and copy the `FraudDetectionPredictCommand` value. The `FraudDetectionPredictCommand` contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
 
 Note: This command needs to run from within the `vpc-ml` folder as it references the `fraudtest.json` test file.
 
@@ -222,7 +222,7 @@ Part2 (Runtime Components):
 12. Once the CloudFormation stack has completed building successfully - navigate to the ECS service within the AWS console.
 13. Confirm that the new ECS fraud detection cluster has been created successfully. 
 14. Confirm that the new ECS fraud detection cluster has been been configured with 1 Service, which in turn has been configured with 2 RUNNING Tasks.
-16. Back within the CloudFormation service - take a look at the Outputs tab of the just built stack and copy the FraudDetectionPredictCommand value. The FraudDetectionPredictCommand contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
+16. Back within the CloudFormation service - take a look at the Outputs tab of the just built stack and copy the `FraudDetectionPredictCommand` value. The `FraudDetectionPredictCommand` contains a ready to use CURL command to fire in a fraud detection request. An example of this command follows:
 
 Note: This command needs to run from within the `vpc-ml` folder as it references the `fraudtest.json` test file.
 
