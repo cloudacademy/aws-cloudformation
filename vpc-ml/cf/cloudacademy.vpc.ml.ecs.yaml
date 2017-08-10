@@ -272,7 +272,7 @@ Resources:
         DependsOn: ALBListener
         Properties:
             Cluster: !Ref 'ECSCluster'
-            DesiredCount: '1'
+            DesiredCount: 2
             LoadBalancers:
             - ContainerName: FraudDetectionContainer
               ContainerPort: '5000'
@@ -342,34 +342,7 @@ Resources:
               Value: !Ref 'service'
             ComparisonOperator: GreaterThanThreshold
             MetricName: HTTPCode_ELB_5XX_Count
-    EC2Role:
-        Type: AWS::IAM::Role
-        Properties:
-            AssumeRolePolicyDocument:
-                Statement:
-                - Effect: Allow
-                  Principal:
-                    Service: [ec2.amazonaws.com]
-                  Action: ['sts:AssumeRole']
-            Path: /
-            Policies:
-            - PolicyName: ecs-service
-              PolicyDocument:
-                Statement:
-                - Effect: Allow
-                  Action: [
-                    'ecr:GetAuthorizationToken',
-                    'ecs:CreateCluster', 
-                    'ecs:DeregisterContainerInstance', 
-                    'ecs:DiscoverPollEndpoint',
-                    'ecs:Poll', 
-                    'ecs:RegisterContainerInstance', 
-                    'ecs:StartTelemetrySession',
-                    'ecs:Submit*', 
-                    'logs:CreateLogStream', 
-                    'logs:PutLogEvents'
-                  ]
-                  Resource: '*'
+
     AutoscalingRole:
         Type: AWS::IAM::Role
         Properties:
@@ -392,7 +365,7 @@ Resources:
         Type: AWS::IAM::InstanceProfile
         Properties:
             Path: /
-            Roles: [!Ref 'EC2Role']
+            Roles: [FraudDetectCodeBuildEC2ClusterInstanceRole]
 
 Outputs:
     ecsservice:

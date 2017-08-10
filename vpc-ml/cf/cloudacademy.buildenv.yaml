@@ -10,7 +10,8 @@ Parameters:
     Default: frauddetect
     Type: String    
 Resources:
-  MyRepository: 
+  MyRepository:
+    DependsOn: FraudDetectCodeBuildEC2ClusterInstanceRole 
     Type: "AWS::ECR::Repository"
     Properties: 
       RepositoryName: !Ref ECRRepoName
@@ -20,10 +21,7 @@ Resources:
         - Sid: AllowPushPull
           Effect: Allow
           Principal:
-            AWS: "*"
-          Condition:
-            ArnLike:
-              aws:SourceArn: !Sub arn:aws:iam:${AWS::AccountId}:user/*
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:role/FraudDetectCodeBuildEC2ClusterInstanceRole
           Action:
           - ecr:GetDownloadUrlForLayer
           - ecr:BatchGetImage
@@ -34,11 +32,11 @@ Resources:
           - ecr:CompleteLayerUpload
   MLBuildImageProject:
     Type: AWS::CodeBuild::Project
-    DependsOn: CodeBuildRole
+    DependsOn: FraudDetectCodeBuildRole
     Properties:
-      Name: MLBuildProject
+      Name: FraudDetectionBuildProject
       Description: Builds ML Image and uploads to ECR
-      ServiceRole: !Ref CodeBuildRole
+      ServiceRole: !Ref FraudDetectCodeBuildRole
       Artifacts:
         Type: no_artifacts
       Environment:
@@ -64,9 +62,10 @@ Resources:
         - Key: Key2
           Value: Value2
 
-  CodeBuildRole:
+  FraudDetectCodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: FraudDetectCodeBuildRole 
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -76,3 +75,33 @@ Resources:
           Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
+
+  FraudDetectCodeBuildEC2ClusterInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: FraudDetectCodeBuildEC2ClusterInstanceRole 
+      AssumeRolePolicyDocument:
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ec2.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: [
+              'ecr:GetAuthorizationToken',
+              'ecs:CreateCluster', 
+              'ecs:DeregisterContainerInstance', 
+              'ecs:DiscoverPollEndpoint',
+              'ecs:Poll', 
+              'ecs:RegisterContainerInstance', 
+              'ecs:StartTelemetrySession',
+              'ecs:Submit*', 
+              'logs:CreateLogStream', 
+              'logs:PutLogEvents'
+            ]
+            Resource: '*'
