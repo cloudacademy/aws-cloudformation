@@ -72,7 +72,7 @@ To install this environment, complete the following steps
 Notes: 
 * Wait before firing tests as the fraud detection model needs 5-10mins to build/train 
 * This command needs to run from within the `vpc-ml/test` folder as it references the `fraudtest.json` test file.
-* The endpoint listens on port 5000 and hits the EC2 instance public IP.
+* The endpoint listens on port `5000` and hits the EC2 instance public IP.
 
 ```
 curl --header 'Content-Type: application/json' -vX POST http://52.18.231.127:5000/predict -d @fraudtest.json
@@ -227,8 +227,7 @@ To install this environment, complete the following parts, Part1 and Part2:
 
 Notes:
 * This command needs to run from within the `vpc-ml/test` folder as it references the `fraudtest.json` test file.
-
-Note: The endpoint listens on port 80 and hits the ALB
+* The endpoint listens on port `80` and hits the ALB
 
 ```
 curl --header 'Content-Type: application/json' -vX POST http://ECSALB-1049799994.eu-west-1.elb.amazonaws.com/predict -d @fraudtest.json
