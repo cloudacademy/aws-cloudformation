@@ -4,7 +4,7 @@ Contains YAML CloudFormation templates used to build 2 example serverful environ
 ## Environment 1 - Simple
 
 ### Files
-`cloudacademy.vpc.ml.yaml`
+* `cloudacademy.vpc.ml.yaml`
 
 ### Overview
 The creation of this environment involves spinning up a single CloudFormation stack using just the template `cloudacademy.vpc.ml.yaml`.
@@ -99,8 +99,8 @@ curl --header 'Content-Type: application/json' -vX POST http://52.18.231.127:500
 ## Environment 2 - Complex
 
 ### Files
-`cloudacademy.buildenv.yaml` - Part1 (Buildtime Components)
-`cloudacademy.vpc.ml.ecs.yaml` - Part2 (Runtime Components)
+* `cloudacademy.buildenv.yaml` - Part1 (Buildtime Components)
+* `cloudacademy.vpc.ml.ecs.yaml` - Part2 (Runtime Components)
 
 ### Overview
 The creation of this environment involves spinning up two CloudFormation stacks using the templates `cloudacademy.buildenv.yaml` and `cloudacademy.vpc.ml.ecs.yaml`, in this order.
