@@ -1,16 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CLOUDACADEMY - Creates VPC and hosts ML ECS Cluster
+Description: CLOUDACADEMY - Creates VPC and hosts FraudDetection ML ECS cluster
 Parameters:
   KeyName:
     Description: EC2 KeyPair to enable SSH access to the EC2 instances
     Type: AWS::EC2::KeyPair::KeyName
     ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
   ECRRepoName:
-    Description: Name of the ECR repo
+    Description: Name of the custom Fraud Detection ECR repo
     Default: frauddetectrepo
     Type: String
   FraudDetectImageTagName:
-    Description: ECR Tag Name applied to Fraud Detection docker image
+    Description: Fraud Detection ECR Tag Name applied to Fraud Detection docker image
     Default: frauddetect
     Type: String    
   ClusterInstanceType:
@@ -18,7 +18,23 @@ Parameters:
     Default: t2.micro
     Type: String
     AllowedValues: [t2.micro]
-    ConstraintDescription: must be a valid EC2 instance type - e.g. t2.medium
+    ConstraintDescription: must be a valid EC2 instance type - e.g. t2.micro
+  VPCCIDR:
+    Description: CIDR block for new VPC
+    Default: 192.168.0.0/20
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.0.0/20
+  SubnetAZ1CIDR:
+    Description: CIDR block for new AZ1 Subnet
+    Default: 192.168.0.0/24
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.0.0/24
+  SubnetAZ2CIDR:
+    Description: CIDR block for new AZ2 Subnet
+    Default: 192.168.1.0/24
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.1.0/24
+    
 Mappings:
     AWSRegionToECSAMI:
         us-east-1:
@@ -48,7 +64,7 @@ Resources:
     VPCCLOUD:
         Type: AWS::EC2::VPC
         Properties:
-            CidrBlock: 192.168.0.0/20
+            CidrBlock: !Ref VPCCIDR
             EnableDnsSupport: true
             EnableDnsHostnames: true
             InstanceTenancy: default
@@ -61,7 +77,7 @@ Resources:
         Properties:
             VpcId:
                 Ref: VPCCLOUD
-            CidrBlock: 192.168.1.0/24
+            CidrBlock: !Ref SubnetAZ1CIDR
             AvailabilityZone: 
                 Fn::Select: 
                     - 0
@@ -75,7 +91,7 @@ Resources:
         Properties:
             VpcId:
                 Ref: VPCCLOUD
-            CidrBlock: 192.168.2.0/24
+            CidrBlock: !Ref SubnetAZ2CIDR
             AvailabilityZone: 
                 Fn::Select: 
                     - 1
@@ -133,8 +149,6 @@ Resources:
                 Ref: VPCCLOUDSubnetRouteTable
             SubnetId:
                 Ref: VPCCLOUDSubnet2
-
-
 
     ECSCluster:
         Type: AWS::ECS::Cluster

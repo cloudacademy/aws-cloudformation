@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CLOUDACADEMY - Creates VPC and host ML instance
+Description: CLOUDACADEMY - Creates VPC and hosts single FraudDetection ML instance
 Parameters:
   KeyName:
     Description: EC2 KeyPair to enable SSH access to the EC2 instances
@@ -15,6 +15,17 @@ Parameters:
     Type: String
     AllowedValues: [t2.medium]
     ConstraintDescription: must be a valid EC2 instance type - e.g. t2.medium
+  VPCCIDR:
+    Description: CIDR block for new VPC
+    Default: 192.168.0.0/20
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.0.0/20
+  SubnetAZ1CIDR:
+    Description: CIDR block for new AZ1 Subnet
+    Default: 192.168.0.0/24
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.0.0/24
+    
 Mappings:
     AWSRegionToUbuntuAMI:
         us-east-1:
@@ -52,7 +63,7 @@ Resources:
     VPCCLOUD:
         Type: AWS::EC2::VPC
         Properties:
-            CidrBlock: 192.168.0.0/20
+            CidrBlock: !Ref VPCCIDR
             EnableDnsSupport: true
             EnableDnsHostnames: true
             InstanceTenancy: default
@@ -65,7 +76,11 @@ Resources:
         Properties:
             VpcId:
                 Ref: VPCCLOUD
-            CidrBlock: 192.168.1.0/24
+            CidrBlock: !Ref SubnetAZ1CIDR
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""            
             Tags:
               - Key: Name
                 Value: VPCCLOUD Subnet
