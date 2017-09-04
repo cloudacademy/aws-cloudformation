@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates new CodeBuild and ECR build environment
+Parameters:
+  ECRRepoName:
+    Description: Name of the ECR repo
+    Default: frauddetectrepo
+    Type: String
+  FraudDetectImageTagName:
+    Description: ECR Tag Name applied to Fraud Detection docker image
+    Default: frauddetect
+    Type: String    
+Resources:
+  MyRepository:
+    DependsOn: FraudDetectCodeBuildEC2ClusterInstanceRole 
+    Type: "AWS::ECR::Repository"
+    Properties: 
+      RepositoryName: !Ref ECRRepoName
+      RepositoryPolicyText:
+        Version: '2008-10-17'
+        Statement:
+        - Sid: AllowPushPull
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:role/FraudDetectCodeBuildEC2ClusterInstanceRole
+          Action:
+          - ecr:GetDownloadUrlForLayer
+          - ecr:BatchGetImage
+          - ecr:BatchCheckLayerAvailability
+          - ecr:PutImage
+          - ecr:InitiateLayerUpload
+          - ecr:UploadLayerPart
+          - ecr:CompleteLayerUpload
+
+  FraudDetectCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: FraudDetectCodeBuildRole2 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: codebuild.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: FraudDetectCodeBuildPolicy
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: [
+              'ecr:*'
+            ]
+            Resource: '*'
+          - Effect: Allow
+            Action: [
+              'logs:CreateLogGroup',
+              'logs:CreateLogStream',
+              'logs:PutLogEvents'
+            ]
+            Resource: [
+              !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/FraudDetectionBuildProject',
+              !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/FraudDetectionBuildProject:*'
+            ]
+          - Effect: Allow
+            Action: [
+              's3:PutObject',
+              's3:GetObject',
+              's3:GetObjectVersion'
+            ]
+            Resource: !Sub 'arn:aws:s3:::codepipeline-${AWS::Region}-*'
+
+  FraudDetectCodeBuildEC2ClusterInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: FraudDetectCodeBuildEC2ClusterInstanceRole 
+      AssumeRolePolicyDocument:
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ec2.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: [
+              'ecr:GetAuthorizationToken',
+              'ecs:CreateCluster', 
+              'ecs:DeregisterContainerInstance', 
+              'ecs:DiscoverPollEndpoint',
+              'ecs:Poll', 
+              'ecs:RegisterContainerInstance', 
+              'ecs:StartTelemetrySession',
+              'ecs:Submit*', 
+              'logs:CreateLogStream', 
+              'logs:PutLogEvents'
+            ]
+            Resource: '*'
+
+  FraudDetectCodeBuildS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+    DeletionPolicy: Delete
+
+Outputs:
+  LabAccountId:
+    Value: !Ref AWS::AccountId
+    Description: AWS Account Id
+  S3BucketName:
+    Value: !Ref FraudDetectCodeBuildS3Bucket
+    Description: S3 Bucket Name - bucket host CodeBuild build zip file.
+  

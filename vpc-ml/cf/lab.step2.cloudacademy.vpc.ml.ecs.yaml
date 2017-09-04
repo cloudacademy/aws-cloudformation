@@ -1,0 +1,395 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates VPC and hosts FraudDetection ML ECS cluster
+Parameters:
+  KeyName:
+    Description: EC2 KeyPair to enable SSH access to the EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
+  ECRRepoName:
+    Description: Name of the custom Fraud Detection ECR repo
+    Default: frauddetectrepo
+    Type: String
+  FraudDetectImageTagName:
+    Description: Fraud Detection ECR Tag Name applied to Fraud Detection docker image
+    Default: frauddetect
+    Type: String    
+  ClusterInstanceType:
+    Description: ECS Cluster EC2 instance type
+    Default: t2.micro
+    Type: String
+    AllowedValues: [t2.micro]
+    ConstraintDescription: must be a valid EC2 instance type - e.g. t2.micro
+  VPCCIDR:
+    Description: CIDR block for new VPC
+    Default: 192.168.0.0/20
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.0.0/20
+  SubnetAZ1CIDR:
+    Description: CIDR block for new AZ1 Subnet
+    Default: 192.168.0.0/24
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.0.0/24
+  SubnetAZ2CIDR:
+    Description: CIDR block for new AZ2 Subnet
+    Default: 192.168.1.0/24
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.1.0/24
+    
+Mappings:
+    AWSRegionToECSAMI:
+        us-east-1:
+            AMI: ami-7b40176d
+        us-east-2:
+            AMI: ami-4ee0c62b
+        us-west-1:
+            AMI: ami-14b89b74
+        us-west-2:
+            AMI: ami-b9cdc2c0
+        ca-central-1:
+            AMI: ami-c31ca0a7
+        eu-west-1:
+            AMI: ami-a1e6f5c7
+        eu-central-1:
+            AMI: ami-9fea4ff0
+        eu-west-2:
+            AMI: ami-56edfa32
+        ap-northeast-1:
+            AMI: ami-cb787aac
+        ap-southeast-1:
+            AMI: ami-fc67e79f
+        ap-southeast-2:
+            AMI: ami-a14650c2
+
+Resources:
+    VPCCLOUD:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: !Ref VPCCIDR
+            EnableDnsSupport: true
+            EnableDnsHostnames: true
+            InstanceTenancy: default
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD
+
+    VPCCLOUDSubnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            CidrBlock: !Ref SubnetAZ1CIDR
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD1 Subnet
+
+    VPCCLOUDSubnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            CidrBlock: !Ref SubnetAZ2CIDR
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 1
+                    - Fn::GetAZs: ""            
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD2 Subnet
+
+    VPCCLOUDInternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD InternetGateway
+
+    VPCCLOUDAttachInternetGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            InternetGatewayId:
+                Ref: VPCCLOUDInternetGateway
+
+    VPCCLOUDSubnetRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD Subnet Route Table
+
+    VPCCLOUDInternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: VPCCLOUDInternetGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId:
+                Ref: VPCCLOUDInternetGateway
+            RouteTableId:
+                Ref: VPCCLOUDSubnetRouteTable
+
+    VPCCLOUDSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPCCLOUDSubnetRouteTable
+            SubnetId:
+                Ref: VPCCLOUDSubnet1
+
+    VPCCLOUDSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: VPCCLOUDSubnetRouteTable
+            SubnetId:
+                Ref: VPCCLOUDSubnet2
+
+    ECSCluster:
+        Type: AWS::ECS::Cluster
+    EcsSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: ECS Security Group
+            VpcId: !Ref VPCCLOUD
+    EcsSecurityGroupHTTPinbound:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref 'EcsSecurityGroup'
+            IpProtocol: tcp
+            FromPort: '80'
+            ToPort: '80'
+            CidrIp: 0.0.0.0/0
+    EcsSecurityGroupSSHinbound:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref 'EcsSecurityGroup'
+            IpProtocol: tcp
+            FromPort: '22'
+            ToPort: '22'
+            CidrIp: 0.0.0.0/0
+    EcsSecurityGroupALBports:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref 'EcsSecurityGroup'
+            IpProtocol: tcp
+            FromPort: '31000'
+            ToPort: '61000'
+            SourceSecurityGroupId: !Ref 'EcsSecurityGroup'
+    CloudwatchLogsGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Join ['-', [ECSLogGroup, !Ref 'AWS::StackName']]
+            RetentionInDays: 14
+    taskdefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Family: ECSFraudDetectionTaskFamily
+            NetworkMode: bridge
+            ContainerDefinitions:
+            - Name: FraudDetectionContainer
+              Cpu: '10'
+              Essential: 'true'
+              Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:${FraudDetectImageTagName}
+              Memory: '300'
+              LogConfiguration:
+                LogDriver: awslogs
+                Options:
+                    awslogs-group: !Ref 'CloudwatchLogsGroup'
+                    awslogs-region: !Ref 'AWS::Region'
+                    awslogs-stream-prefix: ecs-demo-app
+              PortMappings:
+              - ContainerPort: 5000
+    ECSALB:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: ECSALB
+            Scheme: internet-facing
+            LoadBalancerAttributes:
+            - Key: idle_timeout.timeout_seconds
+              Value: '30'
+            Subnets: [!Ref VPCCLOUDSubnet1, !Ref VPCCLOUDSubnet2]
+            SecurityGroups: [!Ref 'EcsSecurityGroup']
+    ALBListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        DependsOn: ECSServiceRole
+        Properties:
+            DefaultActions:
+            - Type: forward
+              TargetGroupArn: !Ref 'ECSTG'
+            LoadBalancerArn: !Ref 'ECSALB'
+            Port: '80'
+            Protocol: HTTP
+    ECSALBListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        DependsOn: ALBListener
+        Properties:
+            Actions:
+            - Type: forward
+              TargetGroupArn: !Ref 'ECSTG'
+            Conditions:
+            - Field: path-pattern
+              Values: [/]
+            ListenerArn: !Ref 'ALBListener'
+            Priority: 1
+    ECSTG:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        DependsOn: ECSALB
+        Properties:
+            HealthCheckIntervalSeconds: 10
+            HealthCheckPath: /health
+            HealthCheckProtocol: HTTP
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Name: ECSTG
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 2
+            VpcId: !Ref VPCCLOUD
+    ECSAutoScalingGroup:
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties:
+            VPCZoneIdentifier: [!Ref VPCCLOUDSubnet1, !Ref VPCCLOUDSubnet2]
+            LaunchConfigurationName: !Ref ContainerInstances
+            MinSize: 1
+            MaxSize: 1
+            DesiredCapacity: 1
+        CreationPolicy:
+            ResourceSignal:
+                Timeout: PT15M
+        UpdatePolicy:
+            AutoScalingReplacingUpdate:
+                WillReplace: 'true'
+    ContainerInstances:
+        Type: AWS::AutoScaling::LaunchConfiguration
+        DependsOn: VPCCLOUDInternetGateway
+        Properties:
+            AssociatePublicIpAddress: true
+            ImageId: !FindInMap [AWSRegionToECSAMI, !Ref 'AWS::Region', AMI]
+            SecurityGroups: [!Ref 'EcsSecurityGroup']
+            InstanceType: !Ref ClusterInstanceType
+            IamInstanceProfile: !Ref 'EC2InstanceProfile'
+            KeyName: !Ref 'KeyName'
+            UserData:
+                Fn::Base64: !Sub |
+                    #!/bin/bash -xe
+                    echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+                    yum install -y aws-cfn-bootstrap
+                    /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+    service:
+        Type: AWS::ECS::Service
+        DependsOn: ALBListener
+        Properties:
+            Cluster: !Ref 'ECSCluster'
+            DesiredCount: 2
+            LoadBalancers:
+            - ContainerName: FraudDetectionContainer
+              ContainerPort: '5000'
+              TargetGroupArn: !Ref 'ECSTG'
+            Role: !Ref 'ECSServiceRole'
+            TaskDefinition: !Ref 'taskdefinition'
+    ECSServiceRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Principal:
+                    Service: [ecs.amazonaws.com]
+                  Action: ['sts:AssumeRole']
+            Path: /
+            Policies:
+            - PolicyName: ecs-service
+              PolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Action: [
+                    'elasticloadbalancing:DeregisterInstancesFromLoadBalancer',
+                    'elasticloadbalancing:DeregisterTargets',
+                    'elasticloadbalancing:Describe*',
+                    'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
+                    'elasticloadbalancing:RegisterTargets', 
+                    'ec2:Describe*', 
+                    'ec2:AuthorizeSecurityGroupIngress'
+                  ]
+                  Resource: '*'
+    ServiceScalingTarget:
+        Type: AWS::ApplicationAutoScaling::ScalableTarget
+        DependsOn: service
+        Properties:
+            MaxCapacity: 2
+            MinCapacity: 1
+            ResourceId: !Join ['', [service/, !Ref 'ECSCluster', /, !GetAtt [service, Name]]]
+            RoleARN: !GetAtt [AutoscalingRole, Arn]
+            ScalableDimension: ecs:service:DesiredCount
+            ServiceNamespace: ecs
+    ServiceScalingPolicy:
+        Type: AWS::ApplicationAutoScaling::ScalingPolicy
+        Properties:
+            PolicyName: AStepPolicy
+            PolicyType: StepScaling
+            ScalingTargetId: !Ref 'ServiceScalingTarget'
+            StepScalingPolicyConfiguration:
+                AdjustmentType: PercentChangeInCapacity
+                Cooldown: 60
+                MetricAggregationType: Average
+                StepAdjustments:
+                - MetricIntervalLowerBound: 0
+                  ScalingAdjustment: 200
+    ALB500sAlarmScaleUp:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            EvaluationPeriods: '1'
+            Statistic: Average
+            Threshold: '10'
+            AlarmDescription: Alarm if our ALB generates too many HTTP 500s.
+            Period: '60'
+            AlarmActions: [!Ref 'ServiceScalingPolicy']
+            Namespace: AWS/ApplicationELB
+            Dimensions:
+            - Name: ECSService
+              Value: !Ref 'service'
+            ComparisonOperator: GreaterThanThreshold
+            MetricName: HTTPCode_ELB_5XX_Count
+
+    AutoscalingRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Principal:
+                    Service: [application-autoscaling.amazonaws.com]
+                  Action: ['sts:AssumeRole']
+            Path: /
+            Policies:
+            - PolicyName: service-autoscaling
+              PolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Action: ['application-autoscaling:*', 'cloudwatch:DescribeAlarms', 'cloudwatch:PutMetricAlarm',
+                        'ecs:DescribeServices', 'ecs:UpdateService']
+                  Resource: '*'
+    EC2InstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+            Path: /
+            Roles: [FraudDetectCodeBuildEC2ClusterInstanceRole]
+
+Outputs:
+    FraudDetectionPredictCommand:
+        Description: Fraud detection Predict Command
+        Value: !Sub 
+            - "curl --header 'Content-Type: application/json' -vX POST http://${HOST}/predict -d @fraudtest.json"
+            - { HOST: !GetAtt ECSALB.DNSName }
+    FraudDetectionECSService:
+        Value: !Ref 'service'
+    FraudDetectionCluster:
+        Value: !Ref 'ECSCluster'
+    FraudDetectionTaskDef:
+        Value: !Ref 'taskdefinition'
