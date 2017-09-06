@@ -1,5 +1,27 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CLOUDACADEMY - Creates VPC and hosts FraudDetection ML ECS cluster
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - Label: 
+          default: "Network Configuration"
+        Parameters: 
+          - VPCCIDR
+          - SubnetAZ1CIDRWeb
+          - SubnetAZ2CIDRWeb
+          - SubnetAZ1CIDRDatabase
+          - SubnetAZ2CIDRDatabase
+      - Label: 
+          default: "MYSQL Database Configuration"
+        Parameters: 
+          - DBInstanceType
+      - Label: 
+          default: "ECS/ECR Cluster Configuration"
+        Parameters: 
+          - ClusterInstanceType
+          - ECRRepoName
+          - FraudDetectImageTagName
+          - FraudDetectFrontendImageTagName
 Parameters:
   KeyName:
     Description: EC2 KeyPair to enable SSH access to the EC2 instances
@@ -23,6 +45,12 @@ Parameters:
     Type: String
     AllowedValues: [t2.micro, t2.small]
     ConstraintDescription: must be a valid EC2 instance type - e.g. t2.micro
+  DBInstanceType:
+    Description: MYSQL Database EC2 instance type
+    Default: t2.micro
+    Type: String
+    AllowedValues: [t2.micro, t2.small]
+    ConstraintDescription: must be a valid EC2 instance type - e.g. t2.micro   
   VPCCIDR:
     Description: CIDR block for new VPC
     Default: 192.168.0.0/19
@@ -73,6 +101,36 @@ Mappings:
             AMI: ami-fc67e79f
         ap-southeast-2:
             AMI: ami-a14650c2
+
+    AWSRegionToUbuntuAMI:
+        us-east-1:
+            AMI: ami-cd0f5cb6
+        us-east-2:
+            AMI: ami-10547475
+        us-west-1:
+            AMI: ami-09d2fb69
+        us-west-2:
+            AMI: ami-6e1a0117
+        ca-central-1:
+            AMI: ami-9818a7fc
+        eu-west-1:
+            AMI: ami-785db401
+        eu-central-1:
+            AMI: ami-1e339e71
+        eu-west-2:
+            AMI: ami-996372fd
+        ap-northeast-1:
+            AMI: ami-ea4eae8c
+        ap-northeast-2:
+            AMI: ami-d28a53bc
+        ap-southeast-1:
+            AMI: ami-6f198a0c
+        ap-southeast-2:
+            AMI: ami-e2021d81
+        ap-south-1:
+            AMI: ami-099fe766
+        sa-east-1:
+            AMI: ami-10186f7c
 
 Resources:
     VPCCLOUD:
@@ -266,8 +324,8 @@ Resources:
                     VolumeType: gp2
                     VolumeSize: 20
             EbsOptimized: false
-            ImageId: ami-cd0f5cb6
-            InstanceType: t2.micro
+            ImageId: !FindInMap [ AWSRegionToUbuntuAMI, !Ref "AWS::Region", AMI ]
+            InstanceType: !Ref DBInstanceType
             KeyName: !Ref KeyName
             SecurityGroupIds: [!Ref DatabaseSecurityGroup]
             SubnetId: !Ref SubnetAZ1Database
