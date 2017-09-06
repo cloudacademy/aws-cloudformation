@@ -493,7 +493,7 @@ Resources:
               - Name: SERVERFUL_DB_NAME
                 Value: testdb
               - Name: SERVERFUL_FRAUDAPI_HOST
-                Value: jsonplaceholder.typicode.com              
+                Value: !GetAtt ECSALB1.DNSName            
               Essential: 'true'
               Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:${FraudDetectFrontendImageTagName}
               Memory: '300'
@@ -615,6 +615,10 @@ Resources:
             MinSize: 1
             MaxSize: 1
             DesiredCapacity: 1
+            Tags:
+              - Key: Name
+                Value: ECSClusterInstance
+                PropagateAtLaunch: true            
         CreationPolicy:
             ResourceSignal:
                 Timeout: PT15M
@@ -656,7 +660,7 @@ Resources:
 
     ECSServiceFraudDetectFrontend:
         Type: AWS::ECS::Service
-        DependsOn: ECSALB2Listener
+        DependsOn: MYSQLDatabase
         Properties:
             Cluster: !Ref ECSCluster
             DesiredCount: 2
