@@ -30,8 +30,6 @@ Mappings:
     AWSRegionToUbuntuAMI:
         us-east-1:
             AMI: ami-cd0f5cb6
-        us-east-1:
-            AMI: ami-cd0f5cb6
         us-east-2:
             AMI: ami-10547475
         us-west-1:
