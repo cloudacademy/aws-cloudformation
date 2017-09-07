@@ -679,24 +679,86 @@ Resources:
             AutoScalingReplacingUpdate:
                 WillReplace: 'true'
 
+    ECSServiceRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Principal:
+                    Service: [ecs.amazonaws.com]
+                  Action: ['sts:AssumeRole']
+            Path: /
+            Policies:
+            - PolicyName: ECSServicePolicy
+              PolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Action: [
+                    'elasticloadbalancing:DeregisterInstancesFromLoadBalancer',
+                    'elasticloadbalancing:DeregisterTargets',
+                    'elasticloadbalancing:Describe*',
+                    'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
+                    'elasticloadbalancing:RegisterTargets', 
+                    'ec2:Describe*', 
+                    'ec2:AuthorizeSecurityGroupIngress'
+                  ]
+                  Resource: '*'
+
+    ECSClusterRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: ECSClusterRole      
+            Policies:
+                - PolicyName: ECSClusterPolicy
+                  PolicyDocument:
+                    Statement:
+                    - Effect: Allow
+                      Action:
+                        - ecs:CreateCluster
+                        - ecs:DeregisterContainerInstance
+                        - ecs:DiscoverPollEndpoint
+                        - ecs:Poll
+                        - ecs:RegisterContainerInstance
+                        - ecs:StartTelemetrySession
+                        - ecs:Submit*
+                        - ecr:GetAuthorizationToken
+                        - ecr:BatchCheckLayerAvailability
+                        - ecr:GetDownloadUrlForLayer
+                        - ecr:BatchGetImage
+                        - logs:CreateLogStream
+                        - logs:PutLogEvents
+                      Resource: '*'
+            AssumeRolePolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Principal:
+                    Service: [ec2.amazonaws.com]
+                  Action: ['sts:AssumeRole']
+            Path: /
+    ECSClusterIAMInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        DependsOn: ECSClusterRole
+        Properties:
+            Path: /
+            Roles: [!Ref ECSClusterRole]
+
     ContainerInstances:
         Type: AWS::AutoScaling::LaunchConfiguration
-        DependsOn: InternetGateway
+        DependsOn: [ECSClusterIAMInstanceProfile, InternetGateway]
         Properties:
             AssociatePublicIpAddress: true
             ImageId: !FindInMap [AWSRegionToECSAMI, !Ref 'AWS::Region', AMI]
             SecurityGroups: [!Ref 'ECSContainerInstanceSecurityGroup']
             InstanceType: !Ref ClusterInstanceType
-            IamInstanceProfile: !Ref 'EC2InstanceProfile'
-            KeyName: !Ref 'KeyName'
+            IamInstanceProfile: !Ref ECSClusterIAMInstanceProfile
+            KeyName: !Ref KeyName
             UserData:
                 Fn::Base64: !Sub |
                     #!/bin/bash -xe
                     echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
                     yum install -y aws-cfn-bootstrap
                     /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
-
-
 
     ECSServiceFraudDetectAPI:
         Type: AWS::ECS::Service
@@ -713,7 +775,7 @@ Resources:
 
     ECSServiceFraudDetectFrontend:
         Type: AWS::ECS::Service
-        DependsOn: MYSQLDatabase
+        DependsOn: [ECSALB2Listener, MYSQLDatabase]
         Properties:
             Cluster: !Ref ECSCluster
             DesiredCount: 2
@@ -723,33 +785,6 @@ Resources:
               TargetGroupArn: !Ref ECSALB2TG
             Role: !Ref 'ECSServiceRole'
             TaskDefinition: !Ref ECSTaskDefinitionFraudDetectFrontend
-
-
-    ECSServiceRole:
-        Type: AWS::IAM::Role
-        Properties:
-            AssumeRolePolicyDocument:
-                Statement:
-                - Effect: Allow
-                  Principal:
-                    Service: [ecs.amazonaws.com]
-                  Action: ['sts:AssumeRole']
-            Path: /
-            Policies:
-            - PolicyName: ecs-service
-              PolicyDocument:
-                Statement:
-                - Effect: Allow
-                  Action: [
-                    'elasticloadbalancing:DeregisterInstancesFromLoadBalancer',
-                    'elasticloadbalancing:DeregisterTargets',
-                    'elasticloadbalancing:Describe*',
-                    'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
-                    'elasticloadbalancing:RegisterTargets', 
-                    'ec2:Describe*', 
-                    'ec2:AuthorizeSecurityGroupIngress'
-                  ]
-                  Resource: '*'
 
 
     ServiceScalingTargetFraudDetectAPI:
@@ -778,11 +813,11 @@ Resources:
     ALB500sAlarmScaleUpFraudDetectAPI:
         Type: AWS::CloudWatch::Alarm
         Properties:
-            EvaluationPeriods: '1'
+            EvaluationPeriods: 1
             Statistic: Average
-            Threshold: '10'
+            Threshold: 10
             AlarmDescription: Alarm if our ALB generates too many HTTP 500s.
-            Period: '60'
+            Period: 60
             AlarmActions: [!Ref ServiceScalingPolicyFraudDetectAPI]
             Namespace: AWS/ApplicationELB
             Dimensions:
@@ -853,21 +888,50 @@ Resources:
                             'ecs:DescribeServices',
                             'ecs:UpdateService']
                   Resource: '*'
-    EC2InstanceProfile:
-        Type: AWS::IAM::InstanceProfile
-        Properties:
-            Path: /
-            Roles: [FraudDetectCodeBuildEC2ClusterInstanceRole]
 
 Outputs:
     FraudDetectionPredictCommand:
         Description: Fraud detection Predict Command
         Value: !Sub 
-            - "curl --header 'Content-Type: application/json' -vX POST http://${HOST}/predict -d @fraudtest.json"
-            - { HOST: !GetAtt ECSALB1.DNSName }
-    FraudDetectionCluster:
-        Value: !Ref 'ECSCluster'
-    FraudDetectionECSService:
-        Value: !Ref ECSServiceFraudDetectAPI        
-    FraudDetectionTaskDef:
-        Value: !Ref ECSTaskDefinitionFraudDetectAPI
+            - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/predict -d @fraudtest.json"
+            - { HOST: !GetAtt ECSALB1.DNSName }    
+    FraudDetectionFrontendFraudReport:
+        Description: Fraud Detection Frontend Report
+        Value: !Sub 
+            - "curl -i http://${HOST}/fraudreport"
+            - { HOST: !GetAtt ECSALB2.DNSName }
+    FraudDetectionFrontendHealth:
+        Description: Fraud Detection Frontend Health Check
+        Value: !Sub 
+            - "curl -i http://${HOST}/health"
+            - { HOST: !GetAtt ECSALB2.DNSName }
+    FraudDetectionFrontendEnv1:
+        Description: Fraud Detection Frontend ENV1
+        Value: !Sub 
+            - "curl -i http://${HOST}/env1"
+            - { HOST: !GetAtt ECSALB2.DNSName }
+    FraudDetectionFrontendEnv2:
+        Description: Fraud Detection Frontend ENV2
+        Value: !Sub 
+            - "curl -i http://${HOST}/env2"
+            - { HOST: !GetAtt ECSALB2.DNSName }
+    FraudDetectionFrontendEnv3:
+        Description: Fraud Detection Frontend ENV3
+        Value: !Sub 
+            - "curl -i http://${HOST}/env3"
+            - { HOST: !GetAtt ECSALB2.DNSName }
+    FraudDetectionFrontendEnv4:
+        Description: Fraud Detection Frontend ENV4
+        Value: !Sub 
+            - "curl -i http://${HOST}/env4"
+            - { HOST: !GetAtt ECSALB2.DNSName }
+    FraudDetectionFrontendEnv5:
+        Description: Fraud Detection Frontend ENV5
+        Value: !Sub 
+            - "curl -i http://${HOST}/env5"
+            - { HOST: !GetAtt ECSALB2.DNSName }
+    FraudDetectionFrontendFraudPredict:
+        Description: Fraud Detection Frontend Fraud Prediction Command
+        Value: !Sub 
+            - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/fraudpredict -d @test.json"
+            - { HOST: !GetAtt ECSALB2.DNSName }
