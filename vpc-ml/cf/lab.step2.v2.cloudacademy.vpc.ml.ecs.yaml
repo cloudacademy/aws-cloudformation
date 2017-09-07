@@ -305,14 +305,92 @@ Resources:
         Properties:
             GroupDescription: Database Security Group
             VpcId: !Ref VPCCLOUD
-    DatabaseSecurityGroupInbound:
+            Tags:
+              - Key: Name
+                Value: DatabaseSecurityGroup            
+    ECSContainerInstanceSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: ECS Container Instance Security Group
+            VpcId: !Ref VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: ECSContainerInstanceSecurityGroup            
+    ALB1SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Application LoadBalancer 1 Security Group
+            VpcId: !Ref VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: ALB1SecurityGroup            
+    ALB2SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Application LoadBalancer 2 Security Group
+            VpcId: !Ref VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: ALB2SecurityGroup            
+            
+    DatabaseSecurityGroupInboundMYSQL:
         Type: AWS::EC2::SecurityGroupIngress
         Properties:
             GroupId: !Ref DatabaseSecurityGroup
             IpProtocol: tcp
             FromPort: 3306
             ToPort: 3306
-            SourceSecurityGroupId: !Ref EcsSecurityGroup
+            SourceSecurityGroupId: !Ref ECSContainerInstanceSecurityGroup
+    DatabaseSecurityGroupInboundSSH:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref DatabaseSecurityGroup
+            IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            SourceSecurityGroupId: !Ref ECSContainerInstanceSecurityGroup
+
+    ECSContainerInstanceSecurityGroupInboundALB1:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ECSContainerInstanceSecurityGroup
+            IpProtocol: tcp
+            FromPort: 31000
+            ToPort: 61000
+            SourceSecurityGroupId: !Ref ALB1SecurityGroup
+    ECSContainerInstanceSecurityGroupInboundALB2:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ECSContainerInstanceSecurityGroup
+            IpProtocol: tcp
+            FromPort: 31000
+            ToPort: 61000
+            SourceSecurityGroupId: !Ref ALB2SecurityGroup
+    ECSContainerInstanceSecurityGroupInboundSSH:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ECSContainerInstanceSecurityGroup
+            IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 0.0.0.0/0
+
+    ALB1SecurityGroupInboundHTTP:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ALB1SecurityGroup
+            IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+    ALB2SecurityGroupInboundHTTP:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ALB2SecurityGroup
+            IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
 
     MYSQLDatabase:
         Type: AWS::EC2::Instance
@@ -378,8 +456,8 @@ Resources:
 
                     mysql -uroot -ppassword -e "create database testdb;"
 
-                    mysql -uroot -ppassword -e "use testdb; create table testtable (PersonID int, LastName varchar(255), FirstName varchar(255), City varchar(255), Date datetime(6));"
-                    mysql -uroot -ppassword -e "use testdb; describe testtable;"
+                    mysql -uroot -ppassword -e "use testdb; CREATE TABLE fraud_activity (fraudid INT NOT NULL AUTO_INCREMENT, lastname VARCHAR(255), firstname VARCHAR(255), creditcardnumber VARCHAR(16), amount DECIMAL(13,2), score DECIMAL(17,17), date DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (fraudid));"
+                    mysql -uroot -ppassword -e "use testdb; describe fraud_activity;"
 
                     echo ==================================
 
@@ -398,7 +476,7 @@ Resources:
                         jdbc_connection_string => "jdbc:mysql://localhost:3306/testdb"
                         jdbc_user => "root"
                         jdbc_password => "password"
-                        statement => "SELECT * FROM testtable"
+                        statement => "SELECT * FROM fraud_activity"
                         schedule => "* * * * *"
                     }
                     }
@@ -421,35 +499,7 @@ Resources:
 
     ECSCluster:
         Type: AWS::ECS::Cluster
-    EcsSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            GroupDescription: ECS Security Group
-            VpcId: !Ref VPCCLOUD
-    EcsSecurityGroupHTTPinbound:
-        Type: AWS::EC2::SecurityGroupIngress
-        Properties:
-            GroupId: !Ref EcsSecurityGroup
-            IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: 0.0.0.0/0
-    EcsSecurityGroupSSHinbound:
-        Type: AWS::EC2::SecurityGroupIngress
-        Properties:
-            GroupId: !Ref EcsSecurityGroup
-            IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: 0.0.0.0/0
-    EcsSecurityGroupALBports:
-        Type: AWS::EC2::SecurityGroupIngress
-        Properties:
-            GroupId: !Ref EcsSecurityGroup
-            IpProtocol: tcp
-            FromPort: 31000
-            ToPort: 61000
-            SourceSecurityGroupId: !Ref EcsSecurityGroup
+
     CloudwatchLogsGroup:
         Type: AWS::Logs::LogGroup
         Properties:
@@ -476,7 +526,7 @@ Resources:
               - ContainerPort: 5000
     ECSTaskDefinitionFraudDetectFrontend:
         Type: AWS::ECS::TaskDefinition
-        DependsOn: MYSQLDatabase
+        DependsOn: [MYSQLDatabase, ECSALB1]
         Properties:
             Family: ECSFraudDetectionFrontendTaskFamily
             NetworkMode: bridge
@@ -492,8 +542,10 @@ Resources:
                 Value: password
               - Name: SERVERFUL_DB_NAME
                 Value: testdb
-              - Name: SERVERFUL_FRAUDAPI_HOST
-                Value: !GetAtt ECSALB1.DNSName            
+              - Name: SERVERFUL_FRAUDAPI_PREDICT_URL
+                Value: !Sub 
+                    - "http://${HOST}/predict"
+                    - { HOST: !GetAtt ECSALB1.DNSName }
               Essential: 'true'
               Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:${FraudDetectFrontendImageTagName}
               Memory: '300'
@@ -507,6 +559,7 @@ Resources:
               - ContainerPort: 5000
 
 
+
     ECSALB1:
         Type: AWS::ElasticLoadBalancingV2::LoadBalancer
         Properties:
@@ -516,7 +569,7 @@ Resources:
             - Key: idle_timeout.timeout_seconds
               Value: '30'
             Subnets: [!Ref SubnetAZ1Web, !Ref SubnetAZ2Web]
-            SecurityGroups: [!Ref 'EcsSecurityGroup']
+            SecurityGroups: [!Ref 'ALB1SecurityGroup']
     ECSALB2:
         Type: AWS::ElasticLoadBalancingV2::LoadBalancer
         Properties:
@@ -526,7 +579,7 @@ Resources:
             - Key: idle_timeout.timeout_seconds
               Value: '30'
             Subnets: [!Ref SubnetAZ1Web, !Ref SubnetAZ2Web]
-            SecurityGroups: [!Ref 'EcsSecurityGroup']
+            SecurityGroups: [!Ref 'ALB2SecurityGroup']
 
     ECSALB1TG:
         Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -632,7 +685,7 @@ Resources:
         Properties:
             AssociatePublicIpAddress: true
             ImageId: !FindInMap [AWSRegionToECSAMI, !Ref 'AWS::Region', AMI]
-            SecurityGroups: [!Ref 'EcsSecurityGroup']
+            SecurityGroups: [!Ref 'ECSContainerInstanceSecurityGroup']
             InstanceType: !Ref ClusterInstanceType
             IamInstanceProfile: !Ref 'EC2InstanceProfile'
             KeyName: !Ref 'KeyName'
