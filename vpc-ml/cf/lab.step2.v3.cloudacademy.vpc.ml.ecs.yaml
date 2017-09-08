@@ -476,7 +476,9 @@ Resources:
                         jdbc_connection_string => "jdbc:mysql://localhost:3306/testdb"
                         jdbc_user => "root"
                         jdbc_password => "password"
-                        statement => "SELECT * FROM fraud_activity"
+                        statement => "SELECT fraudid, lastname, firstname, creditcardnumber, amount, score, date FROM fraud_activity WHERE fraudid > :sql_last_value"
+                        use_column_value => true
+                        tracking_column => "fraudid"
                         schedule => "* * * * *"
                     }
                     }
@@ -484,7 +486,7 @@ Resources:
                     elasticsearch {
                         hosts => ["search-rds-logstash-test-gv6d4f64d227kgwjbrohgys43e.us-west-2.es.amazonaws.com:443"]
                         ssl => "true"
-                        index => "fraud22"
+                        index => "fraudindex"
                     }
                     stdout { codec => rubydebug }
                     }
@@ -526,7 +528,7 @@ Resources:
               - ContainerPort: 5000
     ECSTaskDefinitionFraudDetectFrontend:
         Type: AWS::ECS::TaskDefinition
-        DependsOn: [MYSQLDatabase, ECSALB1]
+        DependsOn: [MYSQLDatabase, ECSALBFraudDetectAPI]
         Properties:
             Family: ECSFraudDetectionFrontendTaskFamily
             NetworkMode: bridge
@@ -545,7 +547,7 @@ Resources:
               - Name: SERVERFUL_FRAUDAPI_PREDICT_URL
                 Value: !Sub 
                     - "http://${HOST}/predict"
-                    - { HOST: !GetAtt ECSALB1.DNSName }
+                    - { HOST: !GetAtt ECSALBFraudDetectAPI.DNSName }
               Essential: 'true'
               Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:${FraudDetectFrontendImageTagName}
               Memory: '300'
@@ -560,20 +562,20 @@ Resources:
 
 
 
-    ECSALB1:
+    ECSALBFraudDetectAPI:
         Type: AWS::ElasticLoadBalancingV2::LoadBalancer
         Properties:
-            Name: ECSALB1
+            Name: ECSALBFraudDetectAPI
             Scheme: internet-facing
             LoadBalancerAttributes:
             - Key: idle_timeout.timeout_seconds
               Value: '30'
             Subnets: [!Ref SubnetAZ1Web, !Ref SubnetAZ2Web]
             SecurityGroups: [!Ref 'ALB1SecurityGroup']
-    ECSALB2:
+    ECSALBFraudDetectFrontend:
         Type: AWS::ElasticLoadBalancingV2::LoadBalancer
         Properties:
-            Name: ECSALB2
+            Name: ECSALBFraudDetectFrontend
             Scheme: internet-facing
             LoadBalancerAttributes:
             - Key: idle_timeout.timeout_seconds
@@ -581,81 +583,81 @@ Resources:
             Subnets: [!Ref SubnetAZ1Web, !Ref SubnetAZ2Web]
             SecurityGroups: [!Ref 'ALB2SecurityGroup']
 
-    ECSALB1TG:
+    ECSALBFraudDetectAPITG:
         Type: AWS::ElasticLoadBalancingV2::TargetGroup
-        DependsOn: ECSALB1
+        DependsOn: ECSALBFraudDetectAPI
         Properties:
             HealthCheckIntervalSeconds: 10
             HealthCheckPath: /health
             HealthCheckProtocol: HTTP
             HealthCheckTimeoutSeconds: 5
             HealthyThresholdCount: 2
-            Name: ECSALB1TG
+            Name: ECSALBFraudDetectAPITG
             Port: 80
             Protocol: HTTP
             UnhealthyThresholdCount: 2
             VpcId: !Ref VPCCLOUD            
             
-    ECSALB1Listener:
+    ECSALBFraudDetectAPIListener:
         Type: AWS::ElasticLoadBalancingV2::Listener
         DependsOn: ECSServiceRole
         Properties:
             DefaultActions:
             - Type: forward
-              TargetGroupArn: !Ref ECSALB1TG
-            LoadBalancerArn: !Ref ECSALB1
+              TargetGroupArn: !Ref ECSALBFraudDetectAPITG
+            LoadBalancerArn: !Ref ECSALBFraudDetectAPI
             Port: '80'
             Protocol: HTTP
-    ECSALB1ListenerRule:
+    ECSALBFraudDetectAPIListenerRule:
         Type: AWS::ElasticLoadBalancingV2::ListenerRule
-        DependsOn: ECSALB1Listener
+        DependsOn: ECSALBFraudDetectAPIListener
         Properties:
             Actions:
             - Type: forward
-              TargetGroupArn: !Ref ECSALB1TG
+              TargetGroupArn: !Ref ECSALBFraudDetectAPITG
             Conditions:
             - Field: path-pattern
               Values: [/]
-            ListenerArn: !Ref ECSALB1Listener
+            ListenerArn: !Ref ECSALBFraudDetectAPIListener
             Priority: 1
 
 
-    ECSALB2TG:
+    ECSALBFraudDetectFrontendTG:
         Type: AWS::ElasticLoadBalancingV2::TargetGroup
-        DependsOn: ECSALB2
+        DependsOn: ECSALBFraudDetectFrontend
         Properties:
             HealthCheckIntervalSeconds: 10
             HealthCheckPath: /health
             HealthCheckProtocol: HTTP
             HealthCheckTimeoutSeconds: 5
             HealthyThresholdCount: 2
-            Name: ECSALB2TG
+            Name: ECSALBFraudDetectFrontendTG
             Port: 80
             Protocol: HTTP
             UnhealthyThresholdCount: 2
             VpcId: !Ref VPCCLOUD            
             
-    ECSALB2Listener:
+    ECSALBFraudDetectFrontendListener:
         Type: AWS::ElasticLoadBalancingV2::Listener
         DependsOn: ECSServiceRole
         Properties:
             DefaultActions:
             - Type: forward
-              TargetGroupArn: !Ref ECSALB2TG
-            LoadBalancerArn: !Ref ECSALB2
+              TargetGroupArn: !Ref ECSALBFraudDetectFrontendTG
+            LoadBalancerArn: !Ref ECSALBFraudDetectFrontend
             Port: '80'
             Protocol: HTTP
-    ECSALB2ListenerRule:
+    ECSALBFraudDetectFrontendListenerRule:
         Type: AWS::ElasticLoadBalancingV2::ListenerRule
-        DependsOn: ECSALB2Listener
+        DependsOn: ECSALBFraudDetectFrontendListener
         Properties:
             Actions:
             - Type: forward
-              TargetGroupArn: !Ref ECSALB2TG
+              TargetGroupArn: !Ref ECSALBFraudDetectFrontendTG
             Conditions:
             - Field: path-pattern
               Values: [/]
-            ListenerArn: !Ref ECSALB2Listener
+            ListenerArn: !Ref ECSALBFraudDetectFrontendListener
             Priority: 1
 
 
@@ -766,44 +768,44 @@ Outputs:
         Description: Fraud detection Predict Command
         Value: !Sub 
             - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/predict -d @fraudtest.json"
-            - { HOST: !GetAtt ECSALB1.DNSName }    
+            - { HOST: !GetAtt ECSALBFraudDetectAPI.DNSName }    
     FraudDetectionFrontendFraudReport:
         Description: Fraud Detection Frontend Report
         Value: !Sub 
             - "curl -i http://${HOST}/fraudreport"
-            - { HOST: !GetAtt ECSALB2.DNSName }
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendHealth:
         Description: Fraud Detection Frontend Health Check
         Value: !Sub 
             - "curl -i http://${HOST}/health"
-            - { HOST: !GetAtt ECSALB2.DNSName }
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendEnv1:
         Description: Fraud Detection Frontend ENV1
         Value: !Sub 
             - "curl -i http://${HOST}/env1"
-            - { HOST: !GetAtt ECSALB2.DNSName }
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendEnv2:
         Description: Fraud Detection Frontend ENV2
         Value: !Sub 
             - "curl -i http://${HOST}/env2"
-            - { HOST: !GetAtt ECSALB2.DNSName }
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendEnv3:
         Description: Fraud Detection Frontend ENV3
         Value: !Sub 
             - "curl -i http://${HOST}/env3"
-            - { HOST: !GetAtt ECSALB2.DNSName }
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendEnv4:
         Description: Fraud Detection Frontend ENV4
         Value: !Sub 
             - "curl -i http://${HOST}/env4"
-            - { HOST: !GetAtt ECSALB2.DNSName }
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendEnv5:
         Description: Fraud Detection Frontend ENV5
         Value: !Sub 
             - "curl -i http://${HOST}/env5"
-            - { HOST: !GetAtt ECSALB2.DNSName }
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendFraudPredict:
         Description: Fraud Detection Frontend Fraud Prediction Command
         Value: !Sub 
             - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/fraudpredict -d @test.json"
-            - { HOST: !GetAtt ECSALB2.DNSName }
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
