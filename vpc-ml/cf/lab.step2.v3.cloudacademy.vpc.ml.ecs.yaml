@@ -484,8 +484,9 @@ Resources:
                     }
                     output {
                     elasticsearch {
-                        hosts => ["search-rds-logstash-test-gv6d4f64d227kgwjbrohgys43e.us-west-2.es.amazonaws.com:443"]
+                        hosts => ["elasticsearch.workshop.capitalone.aws.internal:443"]
                         ssl => "true"
+                        ssl_certificate_verification  => "false"
                         index => "fraudindex"
                     }
                     stdout { codec => rubydebug }
@@ -761,6 +762,28 @@ Resources:
                     echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
                     yum install -y aws-cfn-bootstrap
                     /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+
+
+    R53PrivateZone:
+        Type: AWS::Route53::HostedZone
+        Properties:
+            HostedZoneConfig:
+                Comment: 'Private Hosted Zone for CloudAcademy C1 Workshop'
+            Name: 'workshop.capitalone.aws.internal'
+            VPCs:
+                - VPCId: !Ref VPCCLOUD
+                  VPCRegion: !Ref AWS::Region
+
+    R53DNSRecordElasticSearch:
+        Type: AWS::Route53::RecordSet
+        DependsOn: [R53PrivateZone]
+        Properties:
+            HostedZoneName: 'workshop.capitalone.aws.internal.'
+            Comment: 'CNAME redirect to ElasticSearch domain'
+            Name: 'elasticsearch.workshop.capitalone.aws.internal.'
+            Type: CNAME
+            TTL: 30
+            ResourceRecords: ['update.this.value']
 
 
 Outputs:
