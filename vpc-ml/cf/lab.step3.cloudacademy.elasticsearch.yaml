@@ -54,3 +54,9 @@ Outputs:
     ElasticsearchDomainEndpoint:
         Description: Elasticsearch Domain Endpoint
         Value: !GetAtt ElasticsearchDomain.DomainEndpoint
+    
+    ElasticsearchKibanaConsole:
+        Description: Elasticsearch Kibana Console
+        Value: !Sub 
+            - "https://${HOST}/_plugin/kibana/"
+            - { HOST: !GetAtt ElasticsearchDomain.DomainEndpoint }

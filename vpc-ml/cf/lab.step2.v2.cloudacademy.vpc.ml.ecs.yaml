@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CLOUDACADEMY - Creates VPC and hosts FraudDetection ML ECS cluster
+Description: CLOUDACADEMY - Creates VPC, hosts FraudDetection ML ECS cluster, and MYSQL database
 Metadata: 
   AWS::CloudFormation::Interface: 
     ParameterGroups: 
@@ -12,16 +12,24 @@ Metadata:
           - SubnetAZ1CIDRDatabase
           - SubnetAZ2CIDRDatabase
       - Label: 
-          default: "MYSQL Database Configuration"
-        Parameters: 
-          - DBInstanceType
-      - Label: 
           default: "ECS/ECR Cluster Configuration"
         Parameters: 
           - ClusterInstanceType
           - ECRRepoName
           - FraudDetectImageTagName
           - FraudDetectFrontendImageTagName
+      - Label: 
+          default: "MYSQL Database Configuration"
+        Parameters: 
+          - DBInstanceType
+          - DBUser
+          - DBPassword
+      - Label: 
+          default: "Logstash Configuration"
+        Parameters: 
+          - ElasticsearchHost
+          - ElasticsearchIndexName
+          
 Parameters:
   KeyName:
     Description: EC2 KeyPair to enable SSH access to the EC2 instances
@@ -50,7 +58,18 @@ Parameters:
     Default: t2.micro
     Type: String
     AllowedValues: [t2.micro, t2.small]
-    ConstraintDescription: must be a valid EC2 instance type - e.g. t2.micro   
+    ConstraintDescription: must be a valid EC2 instance type - e.g. t2.micro
+  DBUser:
+    Description: MYSQL Database Username
+    Default: root
+    Type: String
+    ConstraintDescription: must be a valid user name
+  DBPassword:
+    Description: MYSQL Database Password
+    NoEcho : true
+    Default: password
+    Type: String
+    ConstraintDescription: must be a valid user password
   VPCCIDR:
     Description: CIDR block for new VPC
     Default: 192.168.0.0/19
@@ -76,7 +95,17 @@ Parameters:
     Default: 192.168.21.0/24
     Type: String
     ConstraintDescription: must be a valid CIDR - e.g. 192.168.1.0/24
-    
+
+  ElasticsearchHost:
+    Description: DNS name for Elasticsearch domain
+    Default: elasticsearch.workshop.capitalone.aws.internal
+    Type: String
+  ElasticsearchIndexName:
+    Description: Fraud Index name 
+    Default: fraudindex
+    Type: String
+    ConstraintDescription: must be lowercase with no spaces.    
+
 Mappings:
     AWSRegionToECSAMI:
         us-east-1:
@@ -442,8 +471,8 @@ Resources:
 
                     export DEBIAN_FRONTEND=noninteractive
 
-                    debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password password'
-                    debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password_again password'
+                    debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password ${DBPassword}'
+                    debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password_again ${DBPassword}'
 
                     apt-get install --assume-yes mysql-server-5.7
 
@@ -452,13 +481,13 @@ Resources:
                     systemctl restart mysql
                     systemctl status mysql
 
-                    mysql -uroot -ppassword -e "USE mysql; ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'password';"
-                    mysql -uroot -ppassword -e "USE mysql; UPDATE user SET Host='%' WHERE User='root' AND Host='localhost'; DELETE FROM user WHERE Host != '%' AND User='root'; FLUSH PRIVILEGES;"
+                    mysql -u${DBUser} -p${DBPassword} -e "USE mysql; ALTER USER '${DBUser}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DBPassword}';"
+                    mysql -u${DBUser} -p${DBPassword} -e "USE mysql; UPDATE user SET Host='%' WHERE User='${DBUser}' AND Host='localhost'; DELETE FROM user WHERE Host != '%' AND User='${DBUser}'; FLUSH PRIVILEGES;"
 
-                    mysql -uroot -ppassword -e "create database testdb;"
+                    mysql -u${DBUser} -p${DBPassword} -e "create database testdb;"
 
-                    mysql -uroot -ppassword -e "use testdb; CREATE TABLE fraud_activity (fraudid INT NOT NULL AUTO_INCREMENT, lastname VARCHAR(255), firstname VARCHAR(255), creditcardnumber VARCHAR(16), amount DECIMAL(13,2), score DECIMAL(17,17), date DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (fraudid));"
-                    mysql -uroot -ppassword -e "use testdb; describe fraud_activity;"
+                    mysql -u${DBUser} -p${DBPassword} -e "use testdb; CREATE TABLE fraud_activity (fraudid INT NOT NULL AUTO_INCREMENT, lastname VARCHAR(255), firstname VARCHAR(255), creditcardnumber VARCHAR(16), amount DECIMAL(13,2), score FLOAT, scoredetail VARCHAR(50), date DATETIME DEFAULT CURRENT_TIMESTAMP, instanceip VARCHAR(16), containerip VARCHAR(16), containerhostname VARCHAR(20), PRIMARY KEY (fraudid));"
+                    mysql -u${DBUser} -p${DBPassword} -e "use testdb; describe fraud_activity;"
 
                     echo ==================================
 
@@ -475,9 +504,9 @@ Resources:
                         jdbc_driver_library => "/etc/logstash/connectors/mysql-connector-java-5.1.44-bin.jar"
                         jdbc_driver_class => "com.mysql.jdbc.Driver"
                         jdbc_connection_string => "jdbc:mysql://localhost:3306/testdb"
-                        jdbc_user => "root"
-                        jdbc_password => "password"
-                        statement => "SELECT fraudid, lastname, firstname, creditcardnumber, amount, score, date FROM fraud_activity WHERE fraudid > :sql_last_value"
+                        jdbc_user => "${DBUser}"
+                        jdbc_password => "${DBPassword}"
+                        statement => "SELECT fraudid, lastname, firstname, creditcardnumber, amount, score, scoredetail, date, instanceip, containerip, containerhostname FROM fraud_activity WHERE fraudid > :sql_last_value"
                         use_column_value => true
                         tracking_column => "fraudid"
                         schedule => "* * * * *"
@@ -485,10 +514,10 @@ Resources:
                     }
                     output {
                     elasticsearch {
-                        hosts => ["elasticsearch.workshop.capitalone.aws.internal:443"]
+                        hosts => ["${ElasticsearchHost}:443"]
                         ssl => "true"
                         ssl_certificate_verification  => "false"
-                        index => "fraudindex"
+                        index => "${ElasticsearchIndexName}"
                     }
                     stdout { codec => rubydebug }
                     }
@@ -516,10 +545,10 @@ Resources:
             NetworkMode: bridge
             ContainerDefinitions:
             - Name: FraudDetectionContainer
-              Cpu: '10'
-              Essential: 'true'
+              Cpu: 40
+              Essential: true
               Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:${FraudDetectImageTagName}
-              Memory: '300'
+              Memory: 300
               LogConfiguration:
                 LogDriver: awslogs
                 Options:
@@ -536,23 +565,23 @@ Resources:
             NetworkMode: bridge
             ContainerDefinitions:
             - Name: FraudDetectionFrontendContainer
-              Cpu: '10'
+              Cpu: 40
               Environment:
               - Name: SERVERFUL_DB_HOST
                 Value: !GetAtt MYSQLDatabase.PrivateIp
               - Name: SERVERFUL_DB_USER
-                Value: root
+                Value: !Ref DBUser
               - Name: SERVERFUL_DB_PASS
-                Value: password
+                Value: !Ref DBPassword
               - Name: SERVERFUL_DB_NAME
                 Value: testdb
               - Name: SERVERFUL_FRAUDAPI_PREDICT_URL
                 Value: !Sub 
                     - "http://${HOST}/predict"
                     - { HOST: !GetAtt ECSALBFraudDetectAPI.DNSName }
-              Essential: 'true'
+              Essential: true
               Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:${FraudDetectFrontendImageTagName}
-              Memory: '300'
+              Memory: 300
               LogConfiguration:
                 LogDriver: awslogs
                 Options:
@@ -571,7 +600,7 @@ Resources:
             Scheme: internet-facing
             LoadBalancerAttributes:
             - Key: idle_timeout.timeout_seconds
-              Value: '30'
+              Value: 30
             Subnets: [!Ref SubnetAZ1Web, !Ref SubnetAZ2Web]
             SecurityGroups: [!Ref 'ALB1SecurityGroup']
     ECSALBFraudDetectFrontend:
@@ -581,7 +610,7 @@ Resources:
             Scheme: internet-facing
             LoadBalancerAttributes:
             - Key: idle_timeout.timeout_seconds
-              Value: '30'
+              Value: 30
             Subnets: [!Ref SubnetAZ1Web, !Ref SubnetAZ2Web]
             SecurityGroups: [!Ref 'ALB2SecurityGroup']
 
@@ -608,7 +637,7 @@ Resources:
             - Type: forward
               TargetGroupArn: !Ref ECSALBFraudDetectAPITG
             LoadBalancerArn: !Ref ECSALBFraudDetectAPI
-            Port: '80'
+            Port: 80
             Protocol: HTTP
     ECSALBFraudDetectAPIListenerRule:
         Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -647,7 +676,7 @@ Resources:
             - Type: forward
               TargetGroupArn: !Ref ECSALBFraudDetectFrontendTG
             LoadBalancerArn: !Ref ECSALBFraudDetectFrontend
-            Port: '80'
+            Port: 80
             Protocol: HTTP
     ECSALBFraudDetectFrontendListenerRule:
         Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -925,7 +954,12 @@ Outputs:
     FraudDetectionFrontendFraudReport:
         Description: Fraud Detection Frontend Report
         Value: !Sub 
-            - "curl -i http://${HOST}/fraudreport"
+            - "curl -i http://${HOST}/fraud/report"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendFraudPredict:
+        Description: Fraud Detection Frontend Fraud Prediction Command
+        Value: !Sub 
+            - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/fraud/predict -d @test.json"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendHealth:
         Description: Fraud Detection Frontend Health Check
@@ -935,30 +969,40 @@ Outputs:
     FraudDetectionFrontendEnv1:
         Description: Fraud Detection Frontend ENV1
         Value: !Sub 
-            - "curl -i http://${HOST}/env1"
+            - "curl -i http://${HOST}/env/1"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendEnv2:
         Description: Fraud Detection Frontend ENV2
         Value: !Sub 
-            - "curl -i http://${HOST}/env2"
+            - "curl -i http://${HOST}/env/2"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendEnv3:
         Description: Fraud Detection Frontend ENV3
         Value: !Sub 
-            - "curl -i http://${HOST}/env3"
+            - "curl -i http://${HOST}/env/3"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendEnv4:
         Description: Fraud Detection Frontend ENV4
         Value: !Sub 
-            - "curl -i http://${HOST}/env4"
+            - "curl -i http://${HOST}/env/4"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendEnv5:
         Description: Fraud Detection Frontend ENV5
         Value: !Sub 
-            - "curl -i http://${HOST}/env5"
+            - "curl -i http://${HOST}/env/5"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
-    FraudDetectionFrontendFraudPredict:
-        Description: Fraud Detection Frontend Fraud Prediction Command
+    FraudDetectionFrontendClusterInstanceIP:
+        Description: Fraud Detection Frontend Cluster Instance IP
         Value: !Sub 
-            - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/fraudpredict -d @test.json"
+            - "curl -i http://${HOST}/cluster/instance/ip"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendDockerContainerIP:
+        Description: Fraud Detection Frontend Docker Container IP
+        Value: !Sub 
+            - "curl -i http://${HOST}/docker/container/ip"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendDockerContainerHostname:
+        Description: Fraud Detection Frontend Docker Container Hostname
+        Value: !Sub 
+            - "curl -i http://${HOST}/docker/container/hostname"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
