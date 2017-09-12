@@ -1,0 +1,879 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates new VPC, FraudDetection ML ECS cluster, and MYSQL database
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - Label: 
+          default: "Network Configuration"
+        Parameters: 
+          - VPCCIDR
+          - SubnetAZ1CIDRWeb
+          - SubnetAZ2CIDRWeb
+          - SubnetAZ1CIDRDatabase
+          - SubnetAZ2CIDRDatabase
+      - Label: 
+          default: "ECS/ECR Cluster Configuration"
+        Parameters: 
+          - ClusterInstanceType
+          - ECRRepoName
+          - FraudDetectImageTagName
+          - FraudDetectFrontendImageTagName
+      - Label: 
+          default: "MYSQL Database Configuration"
+        Parameters: 
+          - DBInstanceType
+          - DBUser
+          - DBPassword
+      - Label: 
+          default: "Logstash Configuration"
+        Parameters: 
+          - ElasticsearchHost
+          - ElasticsearchIndexName
+          
+Parameters:
+  KeyName:
+    Description: EC2 KeyPair to enable SSH access to the EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
+  ECRRepoName:
+    Description: Name of the custom Fraud Detection ECR repo
+    Default: frauddetectrepo
+    Type: String
+  FraudDetectImageTagName:
+    Description: Fraud Detection ECR Tag Name applied to Fraud Detection API docker image
+    Default: frauddetectapi
+    Type: String
+  FraudDetectFrontendImageTagName:
+    Description: Fraud Detection ECR Tag Name applied to Fraud Detection FRONTEND docker image
+    Default: frauddetectfrontend
+    Type: String            
+  ClusterInstanceType:
+    Description: ECS Cluster EC2 instance type
+    Default: t2.small
+    Type: String
+    AllowedValues: [t2.micro, t2.small]
+    ConstraintDescription: must be a valid EC2 instance type - e.g. t2.micro
+  DBInstanceType:
+    Description: MYSQL Database EC2 instance type
+    Default: t2.micro
+    Type: String
+    AllowedValues: [t2.micro, t2.small]
+    ConstraintDescription: must be a valid EC2 instance type - e.g. t2.micro
+  DBUser:
+    Description: MYSQL Database Username
+    Default: root
+    Type: String
+    ConstraintDescription: must be a valid user name
+  DBPassword:
+    Description: MYSQL Database Password
+    NoEcho : true
+    Default: password
+    Type: String
+    ConstraintDescription: must be a valid user password
+  VPCCIDR:
+    Description: CIDR block for new VPC
+    Default: 192.168.0.0/19
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.0.0/20
+  SubnetAZ1CIDRWeb:
+    Description: CIDR block for new AZ1 Subnet - Web Layer
+    Default: 192.168.0.0/24
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.0.0/24
+  SubnetAZ2CIDRWeb:
+    Description: CIDR block for new AZ2 Subnet - Web Layer
+    Default: 192.168.1.0/24
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.1.0/24
+  SubnetAZ1CIDRDatabase:
+    Description: CIDR block for new AZ1 Subnet - Database Layer
+    Default: 192.168.20.0/24
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.0.0/24
+  SubnetAZ2CIDRDatabase:
+    Description: CIDR block for new AZ2 Subnet - Database Layer
+    Default: 192.168.21.0/24
+    Type: String
+    ConstraintDescription: must be a valid CIDR - e.g. 192.168.1.0/24
+
+  ElasticsearchHost:
+    Description: DNS name for Elasticsearch domain
+    Default: elasticsearch.workshop.capitalone.aws.internal
+    Type: String
+  ElasticsearchIndexName:
+    Description: Fraud Index name 
+    Default: fraudindex
+    Type: String
+    ConstraintDescription: must be lowercase with no spaces.    
+
+Mappings:
+    AWSRegionToECSAMI:
+        us-east-1:
+            AMI: ami-7b40176d
+        us-east-2:
+            AMI: ami-4ee0c62b
+        us-west-1:
+            AMI: ami-14b89b74
+        us-west-2:
+            AMI: ami-b9cdc2c0
+        ca-central-1:
+            AMI: ami-c31ca0a7
+        eu-west-1:
+            AMI: ami-a1e6f5c7
+        eu-central-1:
+            AMI: ami-9fea4ff0
+        eu-west-2:
+            AMI: ami-56edfa32
+        ap-northeast-1:
+            AMI: ami-cb787aac
+        ap-southeast-1:
+            AMI: ami-fc67e79f
+        ap-southeast-2:
+            AMI: ami-a14650c2
+
+    AWSRegionToUbuntuAMI:
+        us-east-1:
+            AMI: ami-cd0f5cb6
+        us-east-2:
+            AMI: ami-10547475
+        us-west-1:
+            AMI: ami-09d2fb69
+        us-west-2:
+            AMI: ami-6e1a0117
+        ca-central-1:
+            AMI: ami-9818a7fc
+        eu-west-1:
+            AMI: ami-785db401
+        eu-central-1:
+            AMI: ami-1e339e71
+        eu-west-2:
+            AMI: ami-996372fd
+        ap-northeast-1:
+            AMI: ami-ea4eae8c
+        ap-northeast-2:
+            AMI: ami-d28a53bc
+        ap-southeast-1:
+            AMI: ami-6f198a0c
+        ap-southeast-2:
+            AMI: ami-e2021d81
+        ap-south-1:
+            AMI: ami-099fe766
+        sa-east-1:
+            AMI: ami-10186f7c
+
+Resources:
+    VPCCLOUD:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: !Ref VPCCIDR
+            EnableDnsSupport: true
+            EnableDnsHostnames: true
+            InstanceTenancy: default
+            Tags:
+              - Key: Name
+                Value: VPCCLOUD
+
+    SubnetAZ1Web:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            CidrBlock: !Ref SubnetAZ1CIDRWeb
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""
+            Tags:
+              - Key: Name
+                Value: SubnetAZ1Web
+
+    SubnetAZ2Web:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            CidrBlock: !Ref SubnetAZ2CIDRWeb
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 1
+                    - Fn::GetAZs: ""            
+            Tags:
+              - Key: Name
+                Value: SubnetAZ2Web
+
+    SubnetAZ1Database:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            CidrBlock: !Ref SubnetAZ1CIDRDatabase
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 0
+                    - Fn::GetAZs: ""
+            Tags:
+              - Key: Name
+                Value: SubnetAZ1Database
+
+    SubnetAZ2Database:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            CidrBlock: !Ref SubnetAZ2CIDRDatabase
+            AvailabilityZone: 
+                Fn::Select: 
+                    - 1
+                    - Fn::GetAZs: ""            
+            Tags:
+              - Key: Name
+                Value: SubnetAZ2Database
+
+    EIPNAT:
+        Type: AWS::EC2::EIP
+        Properties:
+            Domain: vpc
+
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+              - Key: Name
+                Value: InternetGateway
+
+    AttachInternetGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            InternetGatewayId:
+                Ref: InternetGateway
+
+    NATGateway:
+        Type: AWS::EC2::NatGateway
+        DependsOn: AttachInternetGateway
+        Properties:
+            AllocationId: !GetAtt EIPNAT.AllocationId
+            SubnetId: 
+                Ref: SubnetAZ1Web
+
+
+
+    RouteTablePublic:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: RouteTableWeb
+
+    RouteTablePrivate:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId:
+                Ref: VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: RouteTableDatabase
+
+    RouteTableAZ1WebAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: RouteTablePublic
+            SubnetId:
+                Ref: SubnetAZ1Web
+
+    RouteTableAZ2WebAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: RouteTablePublic
+            SubnetId:
+                Ref: SubnetAZ2Web
+
+    RouteTableAZ1DatabaseAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: RouteTablePrivate
+            SubnetId:
+                Ref: SubnetAZ1Database
+
+    RouteTableAZ2DatabaseAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId:
+                Ref: RouteTablePrivate
+            SubnetId:
+                Ref: SubnetAZ2Database
+
+    PublicInternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: InternetGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId:
+                Ref: InternetGateway
+            RouteTableId:
+                Ref: RouteTablePublic
+
+    PrivateInternetRoute:
+        Type: AWS::EC2::Route
+        DependsOn: NATGateway
+        Properties:
+            DestinationCidrBlock: 0.0.0.0/0
+            NatGatewayId:
+                Ref: NATGateway
+            RouteTableId:
+                Ref: RouteTablePrivate
+
+    DatabaseSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Database Security Group
+            VpcId: !Ref VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: DatabaseSecurityGroup            
+    ECSContainerInstanceSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: ECS Container Instance Security Group
+            VpcId: !Ref VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: ECSContainerInstanceSecurityGroup            
+    ALB1SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Application LoadBalancer 1 Security Group
+            VpcId: !Ref VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: ALB1SecurityGroup            
+    ALB2SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Application LoadBalancer 2 Security Group
+            VpcId: !Ref VPCCLOUD
+            Tags:
+              - Key: Name
+                Value: ALB2SecurityGroup            
+            
+    DatabaseSecurityGroupInboundMYSQL:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref DatabaseSecurityGroup
+            IpProtocol: tcp
+            FromPort: 3306
+            ToPort: 3306
+            SourceSecurityGroupId: !Ref ECSContainerInstanceSecurityGroup
+    DatabaseSecurityGroupInboundSSH:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref DatabaseSecurityGroup
+            IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            SourceSecurityGroupId: !Ref ECSContainerInstanceSecurityGroup
+
+    ECSContainerInstanceSecurityGroupInboundALB1:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ECSContainerInstanceSecurityGroup
+            IpProtocol: tcp
+            FromPort: 31000
+            ToPort: 61000
+            SourceSecurityGroupId: !Ref ALB1SecurityGroup
+    ECSContainerInstanceSecurityGroupInboundALB2:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ECSContainerInstanceSecurityGroup
+            IpProtocol: tcp
+            FromPort: 31000
+            ToPort: 61000
+            SourceSecurityGroupId: !Ref ALB2SecurityGroup
+    ECSContainerInstanceSecurityGroupInboundSSH:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ECSContainerInstanceSecurityGroup
+            IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 0.0.0.0/0
+
+    ALB1SecurityGroupInboundHTTP:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ALB1SecurityGroup
+            IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+    ALB2SecurityGroupInboundHTTP:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            GroupId: !Ref ALB2SecurityGroup
+            IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+
+    MYSQLDatabase:
+        Type: AWS::EC2::Instance
+        DependsOn: [R53DNSRecordElasticSearch]
+        Properties:
+            BlockDeviceMappings:
+                - DeviceName: /dev/sda1
+                  Ebs:
+                    DeleteOnTermination: true
+                    VolumeType: gp2
+                    VolumeSize: 20
+            EbsOptimized: false
+            ImageId: !FindInMap [ AWSRegionToUbuntuAMI, !Ref "AWS::Region", AMI ]
+            InstanceType: !Ref DBInstanceType
+            KeyName: !Ref KeyName
+            SecurityGroupIds: [!Ref DatabaseSecurityGroup]
+            SubnetId: !Ref SubnetAZ1Database
+            Tags:
+            - Key: Name
+              Value: MYSQLDatabase
+            UserData:
+                'Fn::Base64': !Sub |
+                    #!/bin/bash
+                    exec > >(tee /var/log/userdata.log)
+                    exec 2>&1
+                    whoami
+                    echo userdata deployment script 1.4
+                    echo =======================================
+
+                    # Download and Install the Latest Updates for the OS
+                    apt-get update && apt-get upgrade -y
+
+                    # Install Java
+                    apt-get -y install default-jre
+                    java -version
+
+                    apt-get -y install apt-transport-https
+                    wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+                    echo "deb https://artifacts.elastic.co/packages/5.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-5.x.list
+
+                    # Install Logstash
+                    apt-get -y update
+                    apt-get -y install logstash
+
+                    # Install essential packages
+                    apt-get -y install htop
+
+                    echo ==================================
+
+                    export DEBIAN_FRONTEND=noninteractive
+
+                    debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password ${DBPassword}'
+                    debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password_again ${DBPassword}'
+
+                    apt-get install --assume-yes mysql-server-5.7
+
+                    # Update bind address to 0.0.0.0
+                    sed -i 's/127\.0\.0\.1/0\.0\.0\.0/g' /etc/mysql/mysql.conf.d/mysqld.cnf
+                    systemctl restart mysql
+                    systemctl status mysql
+
+                    mysql -u${DBUser} -p${DBPassword} -e "USE mysql; ALTER USER '${DBUser}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DBPassword}';"
+                    mysql -u${DBUser} -p${DBPassword} -e "USE mysql; UPDATE user SET Host='%' WHERE User='${DBUser}' AND Host='localhost'; DELETE FROM user WHERE Host != '%' AND User='${DBUser}'; FLUSH PRIVILEGES;"
+
+                    mysql -u${DBUser} -p${DBPassword} -e "create database testdb;"
+
+                    mysql -u${DBUser} -p${DBPassword} -e "use testdb; CREATE TABLE fraud_activity (fraudid INT NOT NULL AUTO_INCREMENT, lastname VARCHAR(255), firstname VARCHAR(255), creditcardnumber VARCHAR(16), amount DECIMAL(13,2), score FLOAT, scoredetail VARCHAR(50), date DATETIME DEFAULT CURRENT_TIMESTAMP, instanceip VARCHAR(16), containerip VARCHAR(16), containerhostname VARCHAR(20), PRIMARY KEY (fraudid));"
+                    mysql -u${DBUser} -p${DBPassword} -e "use testdb; describe fraud_activity;"
+
+                    echo ==================================
+
+                    mkdir /etc/logstash/connectors
+                    cd /etc/logstash/connectors/
+                    curl -OL https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.44.tar.gz
+                    tar -zxvf mysql-connector-java-5.1.44.tar.gz
+                    mv ./mysql-connector-java-5.1.44/mysql-connector-java-5.1.44-bin.jar .
+                    cd /etc/logstash/conf.d
+
+                    cat > logstash-elasticsearch.conf << "EOF"
+                    input {
+                    jdbc {
+                        jdbc_driver_library => "/etc/logstash/connectors/mysql-connector-java-5.1.44-bin.jar"
+                        jdbc_driver_class => "com.mysql.jdbc.Driver"
+                        jdbc_connection_string => "jdbc:mysql://localhost:3306/testdb"
+                        jdbc_user => "${DBUser}"
+                        jdbc_password => "${DBPassword}"
+                        statement => "SELECT fraudid, lastname, firstname, creditcardnumber, amount, score, scoredetail, date, instanceip, containerip, containerhostname FROM fraud_activity WHERE fraudid > :sql_last_value"
+                        use_column_value => true
+                        tracking_column => "fraudid"
+                        schedule => "* * * * *"
+                    }
+                    }
+                    output {
+                    elasticsearch {
+                        hosts => ["${ElasticsearchHost}:443"]
+                        ssl => "true"
+                        ssl_certificate_verification  => "false"
+                        index => "${ElasticsearchIndexName}"
+                    }
+                    stdout { codec => rubydebug }
+                    }
+                    EOF
+
+                    systemctl restart logstash.service
+                    systemctl status logstash.service
+
+                    echo ==================================
+                    echo FINSIHED!!
+
+
+    ECSCluster:
+        Type: AWS::ECS::Cluster
+
+    CloudwatchLogsGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Join ['-', [ECSLogGroup, !Ref 'AWS::StackName']]
+            RetentionInDays: 14
+    ECSTaskDefinitionFraudDetectAPI:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Family: ECSFraudDetectionTaskFamily
+            NetworkMode: bridge
+            ContainerDefinitions:
+            - Name: FraudDetectionContainer
+              Cpu: 40
+              Essential: true
+              Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:${FraudDetectImageTagName}
+              Memory: 300
+              LogConfiguration:
+                LogDriver: awslogs
+                Options:
+                    awslogs-group: !Ref 'CloudwatchLogsGroup'
+                    awslogs-region: !Ref 'AWS::Region'
+                    awslogs-stream-prefix: ecs-frauddetect-api
+              PortMappings:
+              - ContainerPort: 5000
+    ECSTaskDefinitionFraudDetectFrontend:
+        Type: AWS::ECS::TaskDefinition
+        DependsOn: [MYSQLDatabase, ECSALBFraudDetectAPI]
+        Properties:
+            Family: ECSFraudDetectionFrontendTaskFamily
+            NetworkMode: bridge
+            ContainerDefinitions:
+            - Name: FraudDetectionFrontendContainer
+              Cpu: 40
+              Environment:
+              - Name: SERVERFUL_DB_HOST
+                Value: !GetAtt MYSQLDatabase.PrivateIp
+              - Name: SERVERFUL_DB_USER
+                Value: !Ref DBUser
+              - Name: SERVERFUL_DB_PASS
+                Value: !Ref DBPassword
+              - Name: SERVERFUL_DB_NAME
+                Value: testdb
+              - Name: SERVERFUL_FRAUDAPI_PREDICT_URL
+                Value: !Sub 
+                    - "http://${HOST}/predict"
+                    - { HOST: !GetAtt ECSALBFraudDetectAPI.DNSName }
+              Essential: true
+              Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:${FraudDetectFrontendImageTagName}
+              Memory: 300
+              LogConfiguration:
+                LogDriver: awslogs
+                Options:
+                    awslogs-group: !Ref 'CloudwatchLogsGroup'
+                    awslogs-region: !Ref 'AWS::Region'
+                    awslogs-stream-prefix: ecs-frauddetect-frontend
+              PortMappings:
+              - ContainerPort: 5000
+
+
+
+    ECSALBFraudDetectAPI:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: ECSALBFraudDetectAPI
+            Scheme: internet-facing
+            LoadBalancerAttributes:
+            - Key: idle_timeout.timeout_seconds
+              Value: 30
+            Subnets: [!Ref SubnetAZ1Web, !Ref SubnetAZ2Web]
+            SecurityGroups: [!Ref 'ALB1SecurityGroup']
+    ECSALBFraudDetectFrontend:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: ECSALBFraudDetectFrontend
+            Scheme: internet-facing
+            LoadBalancerAttributes:
+            - Key: idle_timeout.timeout_seconds
+              Value: 30
+            Subnets: [!Ref SubnetAZ1Web, !Ref SubnetAZ2Web]
+            SecurityGroups: [!Ref 'ALB2SecurityGroup']
+
+    ECSALBFraudDetectAPITG:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        DependsOn: ECSALBFraudDetectAPI
+        Properties:
+            HealthCheckIntervalSeconds: 10
+            HealthCheckPath: /health
+            HealthCheckProtocol: HTTP
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Name: ECSALBFraudDetectAPITG
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 2
+            VpcId: !Ref VPCCLOUD            
+            
+    ECSALBFraudDetectAPIListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        DependsOn: ECSServiceRole
+        Properties:
+            DefaultActions:
+            - Type: forward
+              TargetGroupArn: !Ref ECSALBFraudDetectAPITG
+            LoadBalancerArn: !Ref ECSALBFraudDetectAPI
+            Port: 80
+            Protocol: HTTP
+    ECSALBFraudDetectAPIListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        DependsOn: ECSALBFraudDetectAPIListener
+        Properties:
+            Actions:
+            - Type: forward
+              TargetGroupArn: !Ref ECSALBFraudDetectAPITG
+            Conditions:
+            - Field: path-pattern
+              Values: [/]
+            ListenerArn: !Ref ECSALBFraudDetectAPIListener
+            Priority: 1
+
+
+    ECSALBFraudDetectFrontendTG:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        DependsOn: ECSALBFraudDetectFrontend
+        Properties:
+            HealthCheckIntervalSeconds: 10
+            HealthCheckPath: /health
+            HealthCheckProtocol: HTTP
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Name: ECSALBFraudDetectFrontendTG
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 2
+            VpcId: !Ref VPCCLOUD            
+            
+    ECSALBFraudDetectFrontendListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        DependsOn: ECSServiceRole
+        Properties:
+            DefaultActions:
+            - Type: forward
+              TargetGroupArn: !Ref ECSALBFraudDetectFrontendTG
+            LoadBalancerArn: !Ref ECSALBFraudDetectFrontend
+            Port: 80
+            Protocol: HTTP
+    ECSALBFraudDetectFrontendListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        DependsOn: ECSALBFraudDetectFrontendListener
+        Properties:
+            Actions:
+            - Type: forward
+              TargetGroupArn: !Ref ECSALBFraudDetectFrontendTG
+            Conditions:
+            - Field: path-pattern
+              Values: [/]
+            ListenerArn: !Ref ECSALBFraudDetectFrontendListener
+            Priority: 1
+
+
+
+    ECSAutoScalingGroup:
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties:
+            VPCZoneIdentifier: [!Ref SubnetAZ1Web, !Ref SubnetAZ2Web]
+            LaunchConfigurationName: !Ref ContainerInstances
+            MinSize: 1
+            MaxSize: 1
+            DesiredCapacity: 1
+            Tags:
+              - Key: Name
+                Value: ECSClusterInstance
+                PropagateAtLaunch: true            
+        CreationPolicy:
+            ResourceSignal:
+                Timeout: PT15M
+        UpdatePolicy:
+            AutoScalingReplacingUpdate:
+                WillReplace: 'true'
+
+    ECSServiceRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Principal:
+                    Service: [ecs.amazonaws.com]
+                  Action: ['sts:AssumeRole']
+            Path: /
+            Policies:
+            - PolicyName: ECSServicePolicy
+              PolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Action: [
+                    'elasticloadbalancing:DeregisterInstancesFromLoadBalancer',
+                    'elasticloadbalancing:DeregisterTargets',
+                    'elasticloadbalancing:Describe*',
+                    'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
+                    'elasticloadbalancing:RegisterTargets', 
+                    'ec2:Describe*', 
+                    'ec2:AuthorizeSecurityGroupIngress'
+                  ]
+                  Resource: '*'
+
+    ECSClusterRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: ECSClusterRole      
+            Policies:
+                - PolicyName: ECSClusterPolicy
+                  PolicyDocument:
+                    Statement:
+                    - Effect: Allow
+                      Action:
+                        - ecs:CreateCluster
+                        - ecs:DeregisterContainerInstance
+                        - ecs:DiscoverPollEndpoint
+                        - ecs:Poll
+                        - ecs:RegisterContainerInstance
+                        - ecs:StartTelemetrySession
+                        - ecs:Submit*
+                        - ecr:GetAuthorizationToken
+                        - ecr:BatchCheckLayerAvailability
+                        - ecr:GetDownloadUrlForLayer
+                        - ecr:BatchGetImage
+                        - logs:CreateLogStream
+                        - logs:PutLogEvents
+                      Resource: '*'
+            AssumeRolePolicyDocument:
+                Statement:
+                - Effect: Allow
+                  Principal:
+                    Service: [ec2.amazonaws.com]
+                  Action: ['sts:AssumeRole']
+            Path: /
+    ECSClusterIAMInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        DependsOn: ECSClusterRole
+        Properties:
+            Path: /
+            Roles: [!Ref ECSClusterRole]
+
+    ContainerInstances:
+        Type: AWS::AutoScaling::LaunchConfiguration
+        DependsOn: [ECSClusterIAMInstanceProfile, InternetGateway]
+        Properties:
+            AssociatePublicIpAddress: true
+            ImageId: !FindInMap [AWSRegionToECSAMI, !Ref 'AWS::Region', AMI]
+            SecurityGroups: [!Ref 'ECSContainerInstanceSecurityGroup']
+            InstanceType: !Ref ClusterInstanceType
+            IamInstanceProfile: !Ref ECSClusterIAMInstanceProfile
+            KeyName: !Ref KeyName
+            UserData:
+                Fn::Base64: !Sub |
+                    #!/bin/bash -xe
+                    echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+                    yum install -y aws-cfn-bootstrap
+                    /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+
+
+    R53PrivateZone:
+        Type: AWS::Route53::HostedZone
+        Properties:
+            HostedZoneConfig:
+                Comment: 'Private Hosted Zone for CloudAcademy C1 Workshop'
+            Name: 'workshop.capitalone.aws.internal'
+            VPCs:
+                - VPCId: !Ref VPCCLOUD
+                  VPCRegion: !Ref AWS::Region
+
+    R53DNSRecordElasticSearch:
+        Type: AWS::Route53::RecordSet
+        DependsOn: [R53PrivateZone]
+        Properties:
+            HostedZoneName: 'workshop.capitalone.aws.internal.'
+            Comment: 'CNAME redirect to ElasticSearch domain'
+            Name: 'elasticsearch.workshop.capitalone.aws.internal.'
+            Type: CNAME
+            TTL: 30
+            ResourceRecords: ['update.this.value']
+
+
+Outputs:
+    FraudDetectionPredictCommand:
+        Description: Fraud detection Predict Command
+        Value: !Sub 
+            - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/predict -d @fraudtest.json"
+            - { HOST: !GetAtt ECSALBFraudDetectAPI.DNSName }    
+    FraudDetectionFrontendFraudReport:
+        Description: Fraud Detection Frontend Report
+        Value: !Sub 
+            - "curl -i http://${HOST}/fraud/report"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendFraudPredict:
+        Description: Fraud Detection Frontend Fraud Prediction Command
+        Value: !Sub 
+            - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/fraud/predict -d @test.json"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendHealth:
+        Description: Fraud Detection Frontend Health Check
+        Value: !Sub 
+            - "curl -i http://${HOST}/health"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendEnv1:
+        Description: Fraud Detection Frontend ENV1
+        Value: !Sub 
+            - "curl -i http://${HOST}/env/1"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendEnv2:
+        Description: Fraud Detection Frontend ENV2
+        Value: !Sub 
+            - "curl -i http://${HOST}/env/2"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendEnv3:
+        Description: Fraud Detection Frontend ENV3
+        Value: !Sub 
+            - "curl -i http://${HOST}/env/3"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendEnv4:
+        Description: Fraud Detection Frontend ENV4
+        Value: !Sub 
+            - "curl -i http://${HOST}/env/4"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendEnv5:
+        Description: Fraud Detection Frontend ENV5
+        Value: !Sub 
+            - "curl -i http://${HOST}/env/5"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendClusterInstanceIP:
+        Description: Fraud Detection Frontend Cluster Instance IP
+        Value: !Sub 
+            - "curl -i http://${HOST}/cluster/instance/ip"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendDockerContainerIP:
+        Description: Fraud Detection Frontend Docker Container IP
+        Value: !Sub 
+            - "curl -i http://${HOST}/docker/container/ip"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
+    FraudDetectionFrontendDockerContainerHostname:
+        Description: Fraud Detection Frontend Docker Container Hostname
+        Value: !Sub 
+            - "curl -i http://${HOST}/docker/container/hostname"
+            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }

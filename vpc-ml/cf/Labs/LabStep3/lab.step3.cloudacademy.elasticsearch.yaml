@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CLOUDACADEMY - Creates new Elasticsearch Domain
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - Label: 
+          default: "Elasticsearch"
+        Parameters: 
+          - DomainName
+          - Version
+Parameters:
+  DomainName:
+    Description: Elasticsearch Domain Name
+    Type: String
+    Default: frauddomain
+    ConstraintDescription: The name must start with a lowercase letter and must be between 3 and 28 characters. Valid characters are a-z (lowercase only), 0-9, and - (hyphen).
+  Version:
+    Description: Elasticsearch Version
+    Default: 5.5
+    Type: String
+    AllowedValues: [5.5, 5.3, 5.1, 2.3, 1.5]
+    ConstraintDescription: must be a valid Elasticsearch version - e.g. 5.5
+       
+Resources:
+    ElasticsearchDomain: 
+        Type: "AWS::Elasticsearch::Domain"
+        Properties:
+            DomainName: !Ref DomainName
+            ElasticsearchVersion: !Ref Version
+            ElasticsearchClusterConfig: 
+                InstanceCount: 1
+                InstanceType: t2.small.elasticsearch
+                DedicatedMasterEnabled: false
+                ZoneAwarenessEnabled: false
+            EBSOptions: 
+                EBSEnabled: true
+                Iops: 0
+                VolumeSize: 20
+                VolumeType: gp2
+            SnapshotOptions: 
+                AutomatedSnapshotStartHour: 0
+            AccessPolicies: 
+                Version: '2012-10-17'
+                Statement: 
+                    - Effect: 'Allow'
+                      Principal: 
+                        AWS: '*'
+                      Action: 'es:*'
+                      Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${DomainName}/*'
+            AdvancedOptions: 
+                rest.action.multi.allow_explicit_index: true
+
+Outputs:
+    ElasticsearchDomainEndpoint:
+        Description: Elasticsearch Domain Endpoint
+        Value: !GetAtt ElasticsearchDomain.DomainEndpoint
+    
+    ElasticsearchKibanaConsole:
+        Description: Elasticsearch Kibana Console
+        Value: !Sub 
+            - "https://${HOST}/_plugin/kibana/"
+            - { HOST: !GetAtt ElasticsearchDomain.DomainEndpoint }
