@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CLOUDACADEMY - Creates Elasticsearch Domain
+Description: CLOUDACADEMY - Creates new Elasticsearch Domain
 Metadata: 
   AWS::CloudFormation::Interface: 
     ParameterGroups: 

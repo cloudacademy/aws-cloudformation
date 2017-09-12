@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CLOUDACADEMY - Creates VPC, hosts FraudDetection ML ECS cluster, and MYSQL database
+Description: CLOUDACADEMY - Creates new VPC, FraudDetection ML ECS cluster, and MYSQL database
 Metadata: 
   AWS::CloudFormation::Interface: 
     ParameterGroups: 
