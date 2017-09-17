@@ -466,7 +466,10 @@ Resources:
                     echo =======================================
 
                     # Download and Install the Latest Updates for the OS
-                    apt-get update && apt-get upgrade -y
+                    apt-get -y update
+                    DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq
+
+                    echo UPDATE complete, installing req tools...
 
                     # Install Java
                     apt-get -y install default-jre
@@ -961,62 +964,37 @@ Resources:
 
 Outputs:
     FraudDetectionPredictCommand:
-        Description: Fraud detection Predict Command
+        Description: Fraud Detection API Predict URL
         Value: !Sub 
-            - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/predict -d @fraudtest.json"
+            - "http://${HOST}/predict"
             - { HOST: !GetAtt ECSALBFraudDetectAPI.DNSName }    
     FraudDetectionFrontendFraudReport:
-        Description: Fraud Detection Frontend Report
+        Description: Fraud Detection Frontend Report URL
         Value: !Sub 
-            - "curl -i http://${HOST}/fraud/report"
+            - "http://${HOST}/fraud/report"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendFraudPredict:
-        Description: Fraud Detection Frontend Fraud Prediction Command
+        Description: Fraud Detection Frontend Fraud Prediction URL, used within the workshop web client
         Value: !Sub 
-            - "curl -i --header 'Content-Type: application/json' -vX POST http://${HOST}/fraud/predict -d @test.json"
+            - "http://${HOST}/fraud/predict"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendHealth:
         Description: Fraud Detection Frontend Health Check
         Value: !Sub 
-            - "curl -i http://${HOST}/health"
-            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
-    FraudDetectionFrontendEnv1:
-        Description: Fraud Detection Frontend ENV1
-        Value: !Sub 
-            - "curl -i http://${HOST}/env/1"
-            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
-    FraudDetectionFrontendEnv2:
-        Description: Fraud Detection Frontend ENV2
-        Value: !Sub 
-            - "curl -i http://${HOST}/env/2"
-            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
-    FraudDetectionFrontendEnv3:
-        Description: Fraud Detection Frontend ENV3
-        Value: !Sub 
-            - "curl -i http://${HOST}/env/3"
-            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
-    FraudDetectionFrontendEnv4:
-        Description: Fraud Detection Frontend ENV4
-        Value: !Sub 
-            - "curl -i http://${HOST}/env/4"
-            - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
-    FraudDetectionFrontendEnv5:
-        Description: Fraud Detection Frontend ENV5
-        Value: !Sub 
-            - "curl -i http://${HOST}/env/5"
+            - "http://${HOST}/health"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendClusterInstanceIP:
         Description: Fraud Detection Frontend Cluster Instance IP
         Value: !Sub 
-            - "curl -i http://${HOST}/cluster/instance/ip"
+            - "http://${HOST}/cluster/instance/ip"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendDockerContainerIP:
         Description: Fraud Detection Frontend Docker Container IP
         Value: !Sub 
-            - "curl -i http://${HOST}/docker/container/ip"
+            - "http://${HOST}/docker/container/ip"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
     FraudDetectionFrontendDockerContainerHostname:
         Description: Fraud Detection Frontend Docker Container Hostname
         Value: !Sub 
-            - "curl -i http://${HOST}/docker/container/hostname"
+            - "http://${HOST}/docker/container/hostname"
             - { HOST: !GetAtt ECSALBFraudDetectFrontend.DNSName }
