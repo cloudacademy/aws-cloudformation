@@ -42,20 +42,20 @@ set vpn ipsec ike-group AWS dead-peer-detection timeout '30'
 ! IPSec Tunnel #1
 ! --------------------------------------------------------------------------------
 
-set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> authentication mode 'pre-shared-secret'
-set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> authentication pre-shared-secret '<TUNNEL1-PRESHAREDKEY-LINE-30>'
-set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> description 'VPC tunnel 1'
-set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> ike-group 'AWS'
-set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> local-address '<VYOS-ETH0-PRIVATE-IP>'
-set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> vti bind 'vti0'
-set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-84> vti esp-group 'AWS'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-89> authentication mode 'pre-shared-secret'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-89> authentication pre-shared-secret '<TUNNEL1-PRESHAREDKEY-LINE-33>'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-89> description 'VPC tunnel 1'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-89> ike-group 'AWS'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-89> local-address '<VYOS-ETH0-PRIVATE-IP>'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-89> vti bind 'vti0'
+set vpn ipsec site-to-site peer <TUNNEL1-VPG-IP-LINE-89> vti esp-group 'AWS'
 
 ! --------------------------------------------------------------------------------
 ! #2: Tunnel Interface Configuration
 !
 !  The tunnel interface is configured with the internal IP address.
 
-set interfaces vti vti0 address '<TUNNEL1-CGW-INSIDE-IP-LINE-87>'
+set interfaces vti vti0 address '<TUNNEL1-CGW-INSIDE-IP-LINE-92>'
 set interfaces vti vti0 description 'VPC tunnel 1'
 set interfaces vti vti0 mtu '1436'
 
@@ -73,20 +73,20 @@ set interfaces vti vti0 mtu '1436'
 ! To ensure that NAT traversal (NAT-T) can function, you must adjust your firewall !rules to unblock UDP port 4500. If not behind NAT, we recommend disabling NAT-T.
 !
 
-set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> authentication mode 'pre-shared-secret'
-set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> authentication pre-shared-secret '<TUNNEL2-PRESHAREDKEY-LINE-120>'
-set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> description 'VPC tunnel 2'
-set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> ike-group 'AWS'
-set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> local-address '<VYOS-ETH0-PRIVATE-IP>'
-set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> vti bind 'vti1'
-set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-174> vti esp-group 'AWS'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-184> authentication mode 'pre-shared-secret'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-184> authentication pre-shared-secret '<TUNNEL2-PRESHAREDKEY-LINE-128>'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-184> description 'VPC tunnel 2'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-184> ike-group 'AWS'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-184> local-address '<VYOS-ETH0-PRIVATE-IP>'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-184> vti bind 'vti1'
+set vpn ipsec site-to-site peer <TUNNEL2-VPG-IP-LINE-184> vti esp-group 'AWS'
 
 ! --------------------------------------------------------------------------------
 ! #2: Tunnel Interface Configuration
 !
 !  The tunnel interface is configured with the internal IP address.
 
-set interfaces vti vti1 address '<TUNNEL2-CGW-INSIDE-IP-LINE-177>'
+set interfaces vti vti1 address '<TUNNEL2-CGW-INSIDE-IP-LINE-187>'
 set interfaces vti vti1 description 'VPC tunnel 2'
 set interfaces vti vti1 mtu '1436'
 

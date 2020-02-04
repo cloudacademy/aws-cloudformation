@@ -7,29 +7,21 @@ Parameters:
     ConstraintDescription: can contain only alphanumeric characters, spaces, dashes and underscores.
 
 Mappings:
-    AWSRegionToVYOS117AMI:
+    AWSRegionToVYOS121AMI:
         us-east-1:
-            AMI: ami-b8e1a5af
+            AMI: ami-0db99f6f146f1cc32
         us-west-1:
-            AMI: ami-8597d9e5
+            AMI: ami-0e287dd3d384b7525
         us-west-2:
-            AMI: ami-ac23fccc
+            AMI: ami-023863e610a5ee8fe
         eu-west-1:
-            AMI: ami-b1f944c2
+            AMI: ami-066f20551bf45273b
         eu-central-1:
-            AMI: ami-49cf3b26
-        ap-northeast-1:
-            AMI: ami-5812e939
-        ap-northeast-2:
-            AMI: ami-76e52f18
+            AMI: ami-08372a0b43ffadbc8
         ap-southeast-1:
-            AMI: ami-3df6525e
-        ap-southeast-2:
-            AMI: ami-1b8bbb78
-        ap-south-1:
-            AMI: ami-7034401f
+            AMI: ami-0d14b57583474ffc6
         sa-east-1:
-            AMI: ami-1a37a476
+            AMI: ami-032fd776ae3a92bcf            
 
     AWSRegionToAWSAMI:
         us-east-1:
@@ -42,16 +34,8 @@ Mappings:
             AMI: ami-01ccc867
         eu-central-1:
             AMI: ami-b968bad6
-        ap-northeast-1:
-            AMI: ami-923d12f5
-        ap-northeast-2:
-            AMI: ami-9d15c7f3
         ap-southeast-1:
             AMI: ami-fc5ae39f
-        ap-southeast-2:
-            AMI: ami-162c2575
-        ap-south-1:
-            AMI: ami-52c7b43d
         sa-east-1:
             AMI: ami-37cfad5b
 
@@ -268,7 +252,7 @@ Resources:
       Properties:
         KeyName: !Ref 'KeyName'
         InstanceType: t2.micro
-        ImageId: !FindInMap [ AWSRegionToVYOS117AMI, !Ref "AWS::Region", AMI ]
+        ImageId: !FindInMap [ AWSRegionToVYOS121AMI, !Ref "AWS::Region", AMI ]
         NetworkInterfaces:
             - NetworkInterfaceId: !Ref VPCCORPVYOSInstanceENIExternalEth0
               DeviceIndex: 0
